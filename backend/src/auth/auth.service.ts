@@ -675,41 +675,87 @@ export class AuthService {
 
     if (!user) {
       // §3.3 step 3 / §4.5 — create product row (no local password)
-      const countryPack = resolveCountryPack(undefined);
-      const company = await this.prisma.company.create({
-        data: {
-          name: `شركة ${displayName}`.slice(0, 120),
-          email,
-          plan: 'STARTER',
-          currency: countryPack.currency,
-          language: countryPack.language,
-          country: countryPack.country,
-          timezone: countryPack.timezone,
-          logo: claims.picture || undefined,
-          posLinkedAt: new Date(),
-          restoLinkedAt: new Date(),
-        },
-      });
-      await this.createDefaultAccounts(company.id);
-      await ensureDefaultCostCentersAndProjects(this.prisma, company.id);
+      try {
+        const countryPack = resolveCountryPack(undefined);
+        user = await this.prisma.$transaction(async (tx) => {
+          const company = await tx.company.create({
+            data: {
+              name: `شركة ${displayName}`.slice(0, 120),
+              email,
+              plan: 'STARTER',
+              currency: countryPack.currency,
+              language: countryPack.language,
+              country: countryPack.country,
+              timezone: countryPack.timezone,
+              logo: claims.picture || undefined,
+              posLinkedAt: new Date(),
+              restoLinkedAt: new Date(),
+            },
+          });
+          return tx.user.create({
+            data: {
+              name: displayName,
+              email,
+              password: null,
+              bhdSub,
+              avatar: claims.picture || null,
+              // Owner of newly provisioned tenant only — not Identity cross-product admin
+              role: 'ADMIN',
+              companyId: company.id,
+              lastLoginAt: new Date(),
+            },
+            include: includeUser,
+          });
+        });
 
-      user = await this.prisma.user.create({
-        data: {
-          name: displayName,
-          email,
-          password: null,
-          bhdSub,
-          avatar: claims.picture || null,
-          // Owner of a newly provisioned tenant only — not Identity-granted cross-product admin
-          role: 'ADMIN',
-          companyId: company.id,
-          lastLoginAt: new Date(),
-        },
-        include: includeUser,
-      });
-      this.logger.log(
-        `BHD SSO provisioned company=${company.id} user=${user.id} bhd_sub=${bhdSub}`,
-      );
+        // Seeds must never block SSO login
+        void this.createDefaultAccounts(user.companyId).catch((e) =>
+          this.logger.warn(`BHD SSO chart seed: ${e instanceof Error ? e.message : e}`),
+        );
+        void ensureDefaultCostCentersAndProjects(this.prisma, user.companyId).catch(
+          (e) =>
+            this.logger.warn(
+              `BHD SSO analytics seed: ${e instanceof Error ? e.message : e}`,
+            ),
+        );
+        this.logger.log(
+          `BHD SSO provisioned company=${user.companyId} user=${user.id} bhd_sub=${bhdSub}`,
+        );
+      } catch (err: unknown) {
+        const prismaCode =
+          err && typeof err === 'object' && 'code' in err
+            ? String((err as { code: unknown }).code)
+            : '';
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.error(`BHD SSO provision failed: ${prismaCode} ${msg.slice(0, 300)}`);
+
+        // Race: another request linked/created the same email — reload
+        const again = await this.prisma.user.findFirst({
+          where: { OR: [{ bhdSub }, { email }] },
+          include: includeUser,
+        });
+        if (again && (!again.bhdSub || again.bhdSub === bhdSub)) {
+          user = again.bhdSub
+            ? again
+            : await this.prisma.user.update({
+                where: { id: again.id },
+                data: { bhdSub, password: null, lastLoginAt: new Date() },
+                include: includeUser,
+              });
+        } else if (prismaCode === 'P2022' || /bhd_sub/i.test(msg)) {
+          throw new UnauthorizedException({
+            statusCode: 401,
+            code: 'BHD_SCHEMA',
+            message: 'Database missing bhd_sub — run prisma migrate deploy',
+          });
+        } else {
+          throw new UnauthorizedException({
+            statusCode: 401,
+            code: 'BHD_PROVISION',
+            message: msg.slice(0, 180),
+          });
+        }
+      }
     }
 
     if (!user.isActive || !user.company?.isActive) {
@@ -728,7 +774,17 @@ export class AuthService {
     }
 
     const { password: _, twoFactorSecret: __, ...safe } = user;
-    return this.issueSession(safe, meta);
+    try {
+      return await this.issueSession(safe, meta);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`BHD SSO issueSession failed: ${msg.slice(0, 300)}`);
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'BHD_PROVISION',
+        message: `session:${msg.slice(0, 120)}`,
+      });
+    }
   }
 
   async refreshToken(refreshToken: string) {

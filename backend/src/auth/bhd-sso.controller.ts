@@ -106,8 +106,8 @@ export class BhdSsoController {
         state,
         saved,
         {
-          ipAddress: req.ip,
-          userAgent: req.headers['user-agent'],
+          ipAddress: typeof req.ip === 'string' ? req.ip : undefined,
+          userAgent: this.normalizeUserAgent(req.headers['user-agent']),
         },
       );
       setAuthCookies(res, tokens);
@@ -116,10 +116,9 @@ export class BhdSsoController {
       return res.redirect(302, `${origin}${dest}`);
     } catch (err: unknown) {
       const errCode = this.bhdErrorCode(err);
+      const errMsg = err instanceof Error ? err.message : String(err);
       this.logger.warn(
-        `BHD callback failed code=${errCode || 'none'}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+        `BHD callback failed code=${errCode || 'none'}: ${errMsg.slice(0, 400)}`,
       );
       if (errCode === 'BHD_NO_LOCAL_USER') {
         return fail('/login?bhd=no_user');
@@ -139,6 +138,9 @@ export class BhdSsoController {
       if (errCode === 'BHD_SCHEMA') {
         return fail('/login?bhd=schema');
       }
+      if (errCode === 'BHD_PROVISION') {
+        return fail(`/login?bhd=provision&why=${this.whySlug(errMsg)}`);
+      }
       if (errCode === 'BHD_TOKEN_EXCHANGE' || errCode === 'BHD_MISSING_ID_TOKEN') {
         return fail('/login?bhd=token');
       }
@@ -152,9 +154,24 @@ export class BhdSsoController {
       if (errCode === 'BHD_STATE_MISMATCH') {
         return fail('/login?bhd=state');
       }
-      const why = encodeURIComponent((errCode || 'unknown').slice(0, 40));
-      return fail(`/login?bhd=exchange&why=${why}`);
+      return fail(
+        `/login?bhd=exchange&why=${this.whySlug(errCode || errMsg || 'unknown')}`,
+      );
     }
+  }
+
+  private normalizeUserAgent(raw: string | string[] | undefined): string | undefined {
+    const s = Array.isArray(raw) ? raw[0] : raw;
+    if (!s || typeof s !== 'string') return undefined;
+    return s.slice(0, 512);
+  }
+
+  private whySlug(raw: string): string {
+    const cleaned = String(raw || 'unknown')
+      .replace(/\s+/g, '_')
+      .replace(/[^a-zA-Z0-9._-]/g, '')
+      .slice(0, 48);
+    return encodeURIComponent(cleaned || 'unknown');
   }
 
   private bhdErrorCode(err: unknown): string {
@@ -166,6 +183,7 @@ export class BhdSsoController {
         if (/inactive/i.test(body)) return 'BHD_INACTIVE';
         if (/Account locked/i.test(body)) return 'BHD_LOCKED';
         if (/bhd_sub/i.test(body)) return 'BHD_SCHEMA';
+        if (/provision|Unique constraint|P2002/i.test(body)) return 'BHD_PROVISION';
         return '';
       }
       if (typeof body === 'object') {
@@ -177,6 +195,13 @@ export class BhdSsoController {
       }
       return '';
     };
+
+    if (err && typeof err === 'object' && 'code' in err) {
+      const c = String((err as { code: unknown }).code);
+      if (c.startsWith('BHD_')) return c;
+      if (c === 'P2022') return 'BHD_SCHEMA';
+      if (c === 'P2002') return 'BHD_PROVISION';
+    }
 
     if (err && typeof err === 'object' && 'getResponse' in err) {
       try {
@@ -216,7 +241,7 @@ export class BhdSsoController {
   @ApiOperation({
     summary: 'BHD SSO readiness (no secrets) — identityTokenSecretConfigured etc.',
   })
-  status() {
+  async status() {
     return this.bhdSso.status();
   }
 

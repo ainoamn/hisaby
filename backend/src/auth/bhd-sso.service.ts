@@ -79,13 +79,23 @@ export class BhdSsoService {
   }
 
   /** Public readiness flags only — never expose secret values. */
-  status() {
+  async status() {
+    let bhdSubColumn = false;
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ column_name: string }>>(
+        `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'bhd_sub' LIMIT 1`,
+      );
+      bhdSubColumn = Array.isArray(rows) && rows.length > 0;
+    } catch {
+      bhdSubColumn = false;
+    }
     return {
       configured: this.isConfigured(),
       issuer: this.issuer(),
       clientId: this.clientId(),
       identityTokenSecretConfigured: !!this.identityTokenSecret(),
       clientSecretConfigured: !!this.clientSecret(),
+      bhdSubColumn,
       verifyModes: [
         'HS256+BHD_IDENTITY_TOKEN_SECRET',
         'JWKS',

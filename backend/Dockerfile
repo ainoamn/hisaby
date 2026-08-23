@@ -26,6 +26,6 @@ COPY --chown=node:node --from=build /app/dist ./dist
 COPY --chown=node:node --from=build /app/src/prisma ./src/prisma
 COPY --chown=node:node package.json ./
 EXPOSE 3001
-# Database migration runs once in the release/migrate job, never in every replica.
+# Apply pending migrations then boot (single Render service — no separate migrate job).
 USER node
-CMD ["node", "--max-old-space-size=384", "dist/main"]
+CMD ["sh", "-c", "npx prisma migrate deploy --schema src/prisma/schema.prisma && node --max-old-space-size=384 dist/main"]
