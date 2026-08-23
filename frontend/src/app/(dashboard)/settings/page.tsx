@@ -171,6 +171,7 @@ export default function SettingsPage() {
                 src={authUser.avatar}
                 alt=""
                 className="w-14 h-14 rounded-full object-cover border border-slate-700"
+                referrerPolicy="no-referrer"
               />
             ) : (
               <div className="w-14 h-14 rounded-full bg-emerald-600/20 text-emerald-400 flex items-center justify-center text-lg font-bold">
