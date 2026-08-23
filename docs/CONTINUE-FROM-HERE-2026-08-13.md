@@ -1,7 +1,20 @@
-# نقطة التوقف — 23 أغسطس 2026 (مساءً)
+# نقطة التوقف — 23 أغسطس 2026
 
-بعد `a72a9ce` ما زال `?bhd=exchange`. إصلاح `08f3235`: بذور غير حاجبة + migrate عند الإقلاع + أخطاء `provision`.
+## الحالة
 
-1. انتظر Render Live لـ `08f3235` (Docker يشغّل migrate)
-2. `GET /api/auth/bhd/status` → `bhdSubColumn: true`
-3. أعد SSO من hisaby.bhd-om.com
+| عنصر | القيمة |
+|------|--------|
+| GitHub `main` | `f84acdb`+ — `ensureBhdSubColumn` (نمط نَسَب) |
+| Neon إنتاج | عمود `users.bhd_sub` **مطبَّق** |
+| Render API | قد يبقى على commit أقدم حتى Manual Deploy — العمود في القاعدة يكفي للدخول |
+
+## وثائق
+
+- [`HISABY-BHD-SUB-COLUMN-APPLIED-2026-08-23.md`](./HISABY-BHD-SUB-COLUMN-APPLIED-2026-08-23.md)
+- [`HISABY-BHD-SSO-2026-08-20.md`](./HISABY-BHD-SSO-2026-08-20.md) · [`BHD-PRODUCT-SSO-ADMIN.md`](./BHD-PRODUCT-SSO-ADMIN.md) §3.3
+
+## بعد الدخول الناجح
+
+1. Render → Manual Deploy لأحدث `main` (يلتقط ensure + migrate-on-boot)
+2. ONE-BHD: قلب حسابي إلى `mode: "sso"` في `apps.ts`
+3. يُفضَّل تدوير كلمة مرور Neon وتحديث Render env

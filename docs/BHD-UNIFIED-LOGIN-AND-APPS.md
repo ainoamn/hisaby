@@ -593,7 +593,7 @@ authorize وtoken دائماً على https://id.bhd-om.com وليس أصل ال
 | كيف ثُبّت | Nest `bhd/start|callback|logout` + `admin-entry` · `users.bhd_sub` · بروكسي Next · غلاف `/login` · **callback حرفياً §0.7/§3.3:** `bhd_sub` → بريد موثّق (إبقاء الدور + مسح كلمة المرور) → وإلا إنشاء مستخدم + شركة STARTER (أدمن تلك الشركة فقط) |
 | حالة المشغّل | `mode: "browse"` حتى تحقق `GET …/api/auth/bhd/start` → 302 للهوية؛ ثم قلب إلى `"sso"` |
 | أسرار (أسماء فقط) | `BHD_IDENTITY_ISSUER`, `BHD_OAUTH_CLIENT_ID`, `BHD_OAUTH_CLIENT_SECRET`, `BHD_IDENTITY_TOKEN_SECRET` (= `IDENTITY_TOKEN_SECRET` أو احتياطي الهوية `AUTH_SECRET`), `JWT_*`, `FRONTEND_URL` |
-| عطل شائع | `?bhd=verify` — ناقص السر / JWKS فارغ (احتياطي userinfo). سابقاً `?bhd=exchange` بسبب رفض إنشاء المستخدم — أُصلح 23 أغسطس وفق §3.3 |
+| عطل شائع | `?bhd=verify` — ناقص السر / JWKS فارغ (احتياطي userinfo). `?bhd=schema` — عمود ناقص (طُبّق على Neon 23 أغسطس + `ensureBhdSubColumn` كنَسَب) |
 | التقنيات | Next.js + NestJS + Prisma + Neon + Render/Vercel — `docs/HISABY-BHD-SSO-2026-08-20.md` · `docs/BHD-PRODUCT-SSO-ADMIN.md` |
 | ما لم يُوحَّد | بيانات التشغيل (فواتير، كاشير، مطاعم، مخزون) — الأدوار تبقى محلية |
 

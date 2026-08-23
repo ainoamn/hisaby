@@ -16,6 +16,7 @@
 **تحليل منافس wazen.pro:** [`COMPETITIVE-WAZEN-PRO-ANALYSIS-2026-08-13.md`](./COMPETITIVE-WAZEN-PRO-ANALYSIS-2026-08-13.md)  
 **دخول BHD الموحّد (حسابي):** [`HISABY-BHD-SSO-2026-08-20.md`](./HISABY-BHD-SSO-2026-08-20.md) · [`BHD-UNIFIED-LOGIN-AND-APPS.md`](./BHD-UNIFIED-LOGIN-AND-APPS.md)  
 **حادثة `?bhd=verify` / HS256 (23 أغسطس):** [`HISABY-BHD-SSO-TOKEN-VERIFY-2026-08-23.md`](./HISABY-BHD-SSO-TOKEN-VERIFY-2026-08-23.md) — احتياطي `userinfo` بعد تبادل الكود؛ حقول الهوية من ONE-BHD (`sub`/`email`/`email_verified` إلزامي).  
+**عمود `bhd_sub` على Neon (23 أغسطس):** [`HISABY-BHD-SUB-COLUMN-APPLIED-2026-08-23.md`](./HISABY-BHD-SUB-COLUMN-APPLIED-2026-08-23.md) — طُبّق SQL + `ensureBhdSubColumn` كنَسَب.  
 **إصلاح موبايل المحاسبة + بطء الأنظمة:** [`HISABY-FIX-MOBILE-ACCOUNTING-PERF-2026-08-09.md`](./HISABY-FIX-MOBILE-ACCOUNTING-PERF-2026-08-09.md)  
 **إصلاح بطء لوحة التحكم 5–10ث:** [`HISABY-FIX-DASHBOARD-SLOW-PAINT-2026-08-10.md`](./HISABY-FIX-DASHBOARD-SLOW-PAINT-2026-08-10.md)  
 **جاهزية الإنتاج + فجوات مفتوحة (واتساب لا يصل):** [`HISABY-OPS-READINESS-AND-OPEN-ISSUES-2026-08-10.md`](./HISABY-OPS-READINESS-AND-OPEN-ISSUES-2026-08-10.md)  
