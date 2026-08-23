@@ -53,7 +53,6 @@ import { useUIStore } from "@/store/ui";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { useTheme } from "next-themes";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
@@ -159,7 +158,6 @@ export function Sidebar() {
   const tAuth = useTranslations("auth");
   const tCommon = useTranslations("common");
   const pathname = usePathname();
-  const router = useRouter();
   const { sidebarCollapsed, sidebarOpen, toggleSidebarCollapse, setSidebarOpen } = useUIStore();
   const { user, logout } = useAuthStore();
   const { locale, setLocale } = useLocaleStore();
@@ -194,12 +192,8 @@ export function Sidebar() {
 
   const handleLogout = async () => {
     setSidebarOpen(false);
-    try {
-      await api.logout();
-    } catch {
-      logout();
-    }
-    router.push("/login");
+    logout();
+    window.location.assign("/api/auth/bhd/logout");
   };
 
   const isModuleOpen = (code: string, legacyFallback?: boolean) => {

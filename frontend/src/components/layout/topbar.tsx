@@ -9,17 +9,23 @@ import { useUIStore } from "@/store/ui";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { NotificationsButton } from "@/components/layout/notifications-button";
+import { BhdAppSwitcher } from "@/components/bhd/BhdAppSwitcher";
 
 export function Topbar() {
   const t = useTranslations("common");
   const { resolvedTheme, setTheme } = useTheme();
   const { setCommandPaletteOpen, toggleSidebar } = useUIStore();
-  const { company } = useAuthStore();
+  const { company, user, logout } = useAuthStore();
   const { locale, setLocale } = useLocaleStore();
   const [searchFocused, setSearchFocused] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
 
   const isDark = resolvedTheme !== "light";
+
+  const onBhdSignOut = () => {
+    logout();
+    window.location.assign("/api/auth/bhd/logout");
+  };
 
   return (
     <header className="sticky top-0 z-40 h-14 sm:h-16 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800/50 flex items-center justify-between px-3 sm:px-6 gap-2">
@@ -59,7 +65,6 @@ export function Topbar() {
         </div>
       </div>
 
-      {/* Desktop chrome — mobile uses sidebar menu only */}
       <div className="hidden lg:flex items-center gap-3 shrink-0">
         <div className="relative">
           <button
@@ -120,8 +125,18 @@ export function Topbar() {
         </div>
       </div>
 
-      <div className="shrink-0">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         <NotificationsButton />
+        {user ? (
+          <BhdAppSwitcher
+            user={{
+              name: user.name || "مستخدم",
+              email: user.email || "",
+              picture: user.avatar || null,
+            }}
+            onSignOut={onBhdSignOut}
+          />
+        ) : null}
       </div>
     </header>
   );

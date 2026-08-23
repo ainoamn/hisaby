@@ -432,7 +432,10 @@ export class BhdSsoService {
       email: String(payload.email).trim().toLowerCase(),
       email_verified: true,
       name: typeof payload.name === 'string' ? payload.name : undefined,
-      picture: typeof payload.picture === 'string' ? payload.picture : undefined,
+      picture:
+        typeof payload.picture === 'string' && payload.picture.trim()
+          ? payload.picture.trim()
+          : undefined,
       preferred_username:
         typeof payload.preferred_username === 'string'
           ? payload.preferred_username

@@ -424,6 +424,7 @@ class ApiClient {
         name: string;
         email: string;
         role: string;
+        avatar?: string | null;
         companyId: string;
         company: import('@/types').Company;
         permissions?: Record<string, 'hidden' | 'view' | 'edit'> | null;
@@ -448,6 +449,7 @@ class ApiClient {
           name: data.name,
           email: data.email,
           role: data.role as never,
+          avatar: data.avatar || undefined,
           companyId: data.companyId,
           company: data.company,
           username: data.username || null,

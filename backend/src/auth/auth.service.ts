@@ -661,7 +661,7 @@ export class AuthService {
         });
       }
     } else {
-      // §3.3 step 1
+      // §3.3 step 1 — refresh name/avatar from Identity on every SSO
       user = await this.prisma.user.update({
         where: { id: user.id },
         data: {
