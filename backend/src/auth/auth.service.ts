@@ -29,6 +29,7 @@ import { assertPublicRegistrationAllowed } from './registration-policy';
 import { EmailNotifyService } from '../notifications/email-notify.service';
 import { randomBytes } from 'crypto';
 import { resolveCountryPack } from '../common/country-packs';
+import { ensureBhdSubColumn } from './ensure-bhd-sub';
 
 @Injectable()
 export class AuthService {
@@ -609,6 +610,8 @@ export class AuthService {
     },
     meta: { ipAddress?: string; userAgent?: string } = {},
   ) {
+    await ensureBhdSubColumn(this.prisma);
+
     const email = claims.email.trim().toLowerCase();
     const bhdSub = claims.sub;
     const displayName = (

@@ -10,6 +10,7 @@ import { createHash, randomBytes } from 'crypto';
 import { createRemoteJWKSet, decodeJwt, jwtVerify } from 'jose';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
+import { ensureBhdSubColumn } from './ensure-bhd-sub';
 
 export const BHD_OAUTH_STATE_COOKIE = 'bhd_oauth_state';
 
@@ -80,7 +81,8 @@ export class BhdSsoService {
 
   /** Public readiness flags only — never expose secret values. */
   async status() {
-    let bhdSubColumn = false;
+    const ok = await ensureBhdSubColumn(this.prisma);
+    let bhdSubColumn = ok;
     try {
       const rows = await this.prisma.$queryRawUnsafe<Array<{ column_name: string }>>(
         `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'bhd_sub' LIMIT 1`,
