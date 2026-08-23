@@ -49,3 +49,4 @@ cypress/screenshots/
 *.pem
 .cache/
 .turbo/
+.vercel
