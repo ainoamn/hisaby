@@ -597,7 +597,8 @@ authorize وtoken دائماً على https://id.bhd-om.com وليس أصل ال
 | التنقل الصامت | كوكي `bhd_id` على مضيف الهوية فقط؛ حسابي لا يقرأ كوكي البوابة |
 | الإدارة | منصة `/admin`: `PLATFORM_ADMIN_EMAILS` / `PlatformOperator` محلياً بعد SSO. أدمن شركة = `User.role=ADMIN` محلي مربوط بـ `bhd_sub`. مسار: `GET /api/auth/admin-entry` |
 | جلسة المنتج | خمول منزلق 48 ساعة (كوكي refresh + صف Session) |
-| أسرار (أسماء فقط) | `BHD_IDENTITY_ISSUER`, `BHD_OAUTH_CLIENT_ID`, `BHD_OAUTH_CLIENT_SECRET`, `BHD_OAUTH_REDIRECT_URI` (اختياري), `JWT_*`, `FRONTEND_URL`, `CORS_ORIGIN`, `BACKEND_URL` (Vercel) |
+| أسرار (أسماء فقط) | `BHD_IDENTITY_ISSUER`, `BHD_OAUTH_CLIENT_ID`, `BHD_OAUTH_CLIENT_SECRET`, `BHD_IDENTITY_TOKEN_SECRET` (= `IDENTITY_TOKEN_SECRET` على الهوية), `BHD_OAUTH_REDIRECT_URI` (اختياري), `JWT_*`, `FRONTEND_URL`, `CORS_ORIGIN`, `BACKEND_URL` (Vercel) |
+| حادثة 23 أغسطس | `?bhd=verify` = ناقص السر على Render — `docs/HISABY-BHD-SSO-TOKEN-VERIFY-2026-08-23.md` |
 | التقنيات الكاملة | Frontend: Next.js 15 · React · Tailwind · Vercel. Backend: NestJS 11 · Prisma · PostgreSQL (Neon) · Render `hisaby-api`. مصادقة منتج: JWT في كوكي. وحدات: محاسبة، POS، مطاعم، مخزون، فواتير… |
 | ما لم يُوحَّد | الشركات، الفواتير، الضريبة، الكاشير، المطبخ، المخزون، أدوار الشركة |
 | قلب `mode` إلى `sso` | يُطلب في ONE-BHD `apps.ts` بعد تحقق 302 حي لـ `start` + جلسة كوكي على الواجهة |
