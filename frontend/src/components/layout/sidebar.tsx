@@ -589,12 +589,20 @@ export function Sidebar() {
               src={user.avatar}
               alt=""
               className="w-9 h-9 rounded-lg object-cover"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+                const fallback = e.currentTarget.nextElementSibling;
+                if (fallback instanceof HTMLElement) fallback.style.display = "flex";
+              }}
             />
-          ) : (
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm">
-              {user?.name?.charAt(0) || "م"}
-            </div>
-          )}
+          ) : null}
+          <div
+            className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm"
+            style={user?.avatar ? { display: "none" } : undefined}
+          >
+            {user?.name?.charAt(0) || "م"}
+          </div>
           {!sidebarCollapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{user?.name || "—"}</p>

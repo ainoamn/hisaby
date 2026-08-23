@@ -3,7 +3,15 @@
 import { BHD_APPS, type BhdApp } from "@/lib/bhd/apps";
 import { DEFAULT_IDENTITY_ISSUER } from "@/lib/bhd/issuer";
 import { BhdAppIcon } from "@/components/bhd/BhdAppIcon";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 
 export type BhdSwitcherUser = {
   name: string;
@@ -29,10 +37,7 @@ function isCurrentApp(app: BhdApp, pageOrigin: string) {
     );
   }
   if (app.id === "portal") {
-    return (
-      here === "https://www.bhd-om.com" ||
-      here === "https://bhd-om.com"
-    );
+    return here === "https://www.bhd-om.com" || here === "https://bhd-om.com";
   }
   return Boolean(app.origin) && here === stripSlash(app.origin);
 }
@@ -60,6 +65,27 @@ function openApp(app: BhdApp, pageOrigin: string) {
   }
 }
 
+function clampCardStyle(anchor: DOMRect): CSSProperties {
+  const margin = 12;
+  const width = Math.min(320, window.innerWidth - margin * 2);
+  let left = anchor.left;
+  // Keep panel inside the viewport (RTL header puts switcher on the left edge)
+  if (left + width > window.innerWidth - margin) {
+    left = window.innerWidth - margin - width;
+  }
+  if (left < margin) left = margin;
+  const top = Math.min(anchor.bottom + 10, window.innerHeight - 120);
+  return {
+    position: "fixed",
+    top,
+    left,
+    right: "auto",
+    width,
+    maxHeight: Math.min(360, window.innerHeight - top - margin),
+    zIndex: 200,
+  };
+}
+
 export function BhdAppSwitcher({
   user,
   onSignOut,
@@ -71,15 +97,41 @@ export function BhdAppSwitcher({
 }) {
   const [panel, setPanel] = useState<Panel>(null);
   const [origin, setOrigin] = useState("");
+  const [pictureFailed, setPictureFailed] = useState(false);
+  const [cardStyle, setCardStyle] = useState<CSSProperties>({});
   const rootRef = useRef<HTMLDivElement>(null);
   const appsId = useId();
   const accountId = useId();
+
+  const picture =
+    user.picture && !pictureFailed ? user.picture.trim() || null : null;
+  const initial = user.name.trim().slice(0, 1) || "ح";
 
   useEffect(() => {
     setOrigin(window.location.origin);
   }, []);
 
+  useEffect(() => {
+    setPictureFailed(false);
+  }, [user.picture]);
+
   const close = useCallback(() => setPanel(null), []);
+
+  const placeCard = useCallback(() => {
+    if (!rootRef.current) return;
+    setCardStyle(clampCardStyle(rootRef.current.getBoundingClientRect()));
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!panel) return;
+    placeCard();
+    window.addEventListener("resize", placeCard);
+    window.addEventListener("scroll", placeCard, true);
+    return () => {
+      window.removeEventListener("resize", placeCard);
+      window.removeEventListener("scroll", placeCard, true);
+    };
+  }, [panel, placeCard]);
 
   useEffect(() => {
     if (!panel) return;
@@ -110,8 +162,6 @@ export function BhdAppSwitcher({
     openApp(app, origin);
   }
 
-  const initial = user.name.trim().slice(0, 1) || "ح";
-
   return (
     <div className="bhd-switcher-slot" ref={rootRef}>
       <button
@@ -141,9 +191,16 @@ export function BhdAppSwitcher({
           setPanel((current) => (current === "account" ? null : "account"))
         }
       >
-        {user.picture ? (
+        {picture ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={user.picture} alt="" width={32} height={32} />
+          <img
+            src={picture}
+            alt=""
+            width={32}
+            height={32}
+            referrerPolicy="no-referrer"
+            onError={() => setPictureFailed(true)}
+          />
         ) : (
           <span>{initial}</span>
         )}
@@ -155,6 +212,7 @@ export function BhdAppSwitcher({
           id={appsId}
           role="dialog"
           aria-label="تطبيقات BHD"
+          style={cardStyle}
         >
           <div className="bhd-switcher-card-head">
             <p>تطبيقات BHD</p>
@@ -180,7 +238,9 @@ export function BhdAppSwitcher({
                     id={app.id}
                     title={app.nameAr}
                     className={
-                      current ? "bhd-switcher-mark is-current" : "bhd-switcher-mark"
+                      current
+                        ? "bhd-switcher-mark is-current"
+                        : "bhd-switcher-mark"
                     }
                   />
                   <span>{app.nameAr}</span>
@@ -197,11 +257,19 @@ export function BhdAppSwitcher({
           id={accountId}
           role="dialog"
           aria-label="الحساب"
+          style={cardStyle}
         >
           <div className="bhd-switcher-account-row">
-            {user.picture ? (
+            {picture ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.picture} alt="" width={44} height={44} />
+              <img
+                src={picture}
+                alt=""
+                width={44}
+                height={44}
+                referrerPolicy="no-referrer"
+                onError={() => setPictureFailed(true)}
+              />
             ) : (
               <span className="bhd-switcher-account-initial">{initial}</span>
             )}
