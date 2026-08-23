@@ -592,13 +592,13 @@ authorize وtoken دائماً على https://id.bhd-om.com وليس أصل ال
 | نطاق BHD | `https://hisaby.bhd-om.com` (+ `hisaby.pro` / `bhd-pro.vercel.app` إضافي) |
 | `redirect_uri` | `{origin}/api/auth/bhd/callback` (Host الواجهة → مسار Next يبروكسي Nest) |
 | كيف ثُبّت | القسم 4 + **0.7** + **4.9**: `User.bhdSub` · Nest `BhdSsoController` · مسارات Next `app/api/auth/bhd/{start,callback,logout}` و`admin-entry` تبروكسي Nest وتعيد `Set-Cookie` Host-only · غلاف `/login`→SSO · `/register`→`id.bhd-om.com` · `returnTo=/`→`/dashboard` · ربط مستخدم قديم بالبريد مع الإبقاء على الدور · لا إنشاء شركة من الهوية |
-| كيف يعمل الدخول | `start` → `https://id.bhd-om.com/oauth/authorize` → `callback` upsert على `bhd_sub` (يحفظ `User.role` وPlatform admin بالبريد) → كوكي `bhd_access`/`bhd_refresh` على منشأ الواجهة عبر بروكسي Next (لا rewrite وحده) → `/dashboard` |
+| كيف يعمل الدخول | `start` → `https://id.bhd-om.com/oauth/authorize` → `callback` يستبدل الكود → تحقق `id_token` (HS256/JWKS) أو احتياطي `userinfo` → upsert على `bhd_sub` (يحفظ الدور) → كوكي الجلسة على الواجهة → `/dashboard` |
 | ملفات `start` / `callback` | Nest: `backend/src/auth/bhd-sso.*` · Next: `frontend/src/app/api/auth/bhd/*` · `frontend/src/lib/bhd-sso-proxy.ts` · `admin-entry` |
 | التنقل الصامت | كوكي `bhd_id` على مضيف الهوية فقط؛ حسابي لا يقرأ كوكي البوابة |
 | الإدارة | منصة `/admin`: `PLATFORM_ADMIN_EMAILS` / `PlatformOperator` محلياً بعد SSO. أدمن شركة = `User.role=ADMIN` محلي مربوط بـ `bhd_sub`. مسار: `GET /api/auth/admin-entry` |
 | جلسة المنتج | خمول منزلق 48 ساعة (كوكي refresh + صف Session) |
-| أسرار (أسماء فقط) | `BHD_IDENTITY_ISSUER`, `BHD_OAUTH_CLIENT_ID`, `BHD_OAUTH_CLIENT_SECRET`, `BHD_IDENTITY_TOKEN_SECRET` (= `IDENTITY_TOKEN_SECRET` على الهوية), `BHD_OAUTH_REDIRECT_URI` (اختياري), `JWT_*`, `FRONTEND_URL`, `CORS_ORIGIN`, `BACKEND_URL` (Vercel) |
-| حادثة 23 أغسطس | `?bhd=verify` = ناقص السر على Render — `docs/HISABY-BHD-SSO-TOKEN-VERIFY-2026-08-23.md` |
+| أسرار (أسماء فقط) | `BHD_IDENTITY_ISSUER`, `BHD_OAUTH_CLIENT_ID`, `BHD_OAUTH_CLIENT_SECRET`, `BHD_IDENTITY_TOKEN_SECRET` (= `IDENTITY_TOKEN_SECRET` أو احتياطي الهوية `AUTH_SECRET`), `BHD_OAUTH_REDIRECT_URI` (اختياري), `JWT_*`, `FRONTEND_URL`, `CORS_ORIGIN`, `BACKEND_URL` (Vercel) |
+| حادثة 23 أغسطس | `?bhd=verify` عند نقص السر؛ أُصلح باحتياطي userinfo + توثيق الحقول من ONE-BHD — `docs/HISABY-BHD-SSO-TOKEN-VERIFY-2026-08-23.md` |
 | التقنيات الكاملة | Frontend: Next.js 15 · React · Tailwind · Vercel. Backend: NestJS 11 · Prisma · PostgreSQL (Neon) · Render `hisaby-api`. مصادقة منتج: JWT في كوكي. وحدات: محاسبة، POS، مطاعم، مخزون، فواتير… |
 | ما لم يُوحَّد | الشركات، الفواتير، الضريبة، الكاشير، المطبخ، المخزون، أدوار الشركة |
 | قلب `mode` إلى `sso` | يُطلب في ONE-BHD `apps.ts` بعد تحقق 302 حي لـ `start` + جلسة كوكي على الواجهة |
