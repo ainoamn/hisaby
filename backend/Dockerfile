@@ -26,6 +26,8 @@ COPY --chown=node:node --from=build /app/dist ./dist
 COPY --chown=node:node --from=build /app/src/prisma ./src/prisma
 COPY --chown=node:node package.json ./
 EXPOSE 3001
-# Apply pending migrations then boot (single Render service — no separate migrate job).
+# Do NOT run prisma migrate in CMD — failed migrate exited 1 and blocked Live
+# (08f3235 / f84acdb). Schema drift for bhd_sub is handled by ensureBhdSubColumn
+# at boot (Nasab pattern) + prisma migrate deploy via Shell when needed.
 USER node
-CMD ["sh", "-c", "npx prisma migrate deploy --schema src/prisma/schema.prisma && node --max-old-space-size=384 dist/main"]
+CMD ["node", "--max-old-space-size=384", "dist/main"]

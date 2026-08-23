@@ -29,7 +29,7 @@ import { assertPublicRegistrationAllowed } from './registration-policy';
 import { EmailNotifyService } from '../notifications/email-notify.service';
 import { randomBytes } from 'crypto';
 import { resolveCountryPack } from '../common/country-packs';
-import { ensureBhdSubColumn } from './ensure-bhd-sub';
+import { ensureBhdSubColumn } from '../prisma/ensure-bhd-sub';
 
 @Injectable()
 export class AuthService {

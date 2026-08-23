@@ -4,7 +4,7 @@
 
 | عنصر | القيمة |
 |------|--------|
-| GitHub `main` | `f84acdb`+ — `ensureBhdSubColumn` (نمط نَسَب) |
+| GitHub `main` | Dockerfile بدون `migrate &&` (كان يقتل Live) + `ensureBhdSubColumn` |
 | Neon إنتاج | عمود `users.bhd_sub` **مطبَّق** |
 | Render API | قد يبقى على commit أقدم حتى Manual Deploy — العمود في القاعدة يكفي للدخول |
 

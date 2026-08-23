@@ -7,7 +7,7 @@ let ready = false;
 
 /**
  * Same pattern as Nasab `ensureBhdSubColumn` — SSO must not depend on a
- * separate migrate job having already run on Render.
+ * separate migrate job / Docker start migrate having already succeeded.
  */
 export async function ensureBhdSubColumn(
   prisma: PrismaClient,

@@ -10,7 +10,7 @@ import { createHash, randomBytes } from 'crypto';
 import { createRemoteJWKSet, decodeJwt, jwtVerify } from 'jose';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
-import { ensureBhdSubColumn } from './ensure-bhd-sub';
+import { ensureBhdSubColumn } from '../prisma/ensure-bhd-sub';
 
 export const BHD_OAUTH_STATE_COOKIE = 'bhd_oauth_state';
 
