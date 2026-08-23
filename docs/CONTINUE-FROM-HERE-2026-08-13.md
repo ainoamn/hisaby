@@ -1,20 +1,23 @@
-# نقطة التوقف — 23 أغسطس 2026
+# نقطة التوقف — 23 أغسطس 2026 (مساءً)
 
-## الحالة
+## الحالة — حي
 
 | عنصر | القيمة |
 |------|--------|
-| GitHub `main` | Dockerfile بدون `migrate &&` (كان يقتل Live) + `ensureBhdSubColumn` |
-| Neon إنتاج | عمود `users.bhd_sub` **مطبَّق** |
-| Render API | قد يبقى على commit أقدم حتى Manual Deploy — العمود في القاعدة يكفي للدخول |
+| GitHub `main` | SSO + مشغّل BHD + إصلاح RTL/الصورة |
+| Neon | `users.bhd_sub` مطبَّق + `ensureBhdSubColumn` |
+| Render `hisaby-api` | Live · `bhdSubColumn: true` |
+| Vercel / `hisaby.bhd-om.com` | Auto-deploy |
+| كتالوج ONE-BHD | حسابي `mode: "sso"` |
 
 ## وثائق
 
+- [`HISABY-BHD-SWITCHER-LIVE-2026-08-23.md`](./HISABY-BHD-SWITCHER-LIVE-2026-08-23.md) — المشغّل + النشر
 - [`HISABY-BHD-SUB-COLUMN-APPLIED-2026-08-23.md`](./HISABY-BHD-SUB-COLUMN-APPLIED-2026-08-23.md)
-- [`HISABY-BHD-SSO-2026-08-20.md`](./HISABY-BHD-SSO-2026-08-20.md) · [`BHD-PRODUCT-SSO-ADMIN.md`](./BHD-PRODUCT-SSO-ADMIN.md) §3.3
+- [`BHD-UNIFIED-LOGIN-AND-APPS.md`](./BHD-UNIFIED-LOGIN-AND-APPS.md) §12.3
 
-## بعد الدخول الناجح
+## اختياري لاحقاً
 
-1. Render → Manual Deploy لأحدث `main` (يلتقط ensure + migrate-on-boot)
-2. ONE-BHD: قلب حسابي إلى `mode: "sso"` في `apps.ts`
-3. يُفضَّل تدوير كلمة مرور Neon وتحديث Render env
+1. `BHD_IDENTITY_TOKEN_SECRET` على Render
+2. تدوير كلمة مرور Neon
+3. واتساب Meta `#200`

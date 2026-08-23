@@ -503,7 +503,7 @@ CREATE INDEX IF NOT EXISTS users_bhd_sub_idx ON <users>(bhd_sub);
 |---|---|---|---|---|
 | الهوية / البوابة | نعم (هي المُصدِر) | نعم | portal `sso` | القسم 6 أعلاه + 12.1 |
 | وازن | قيد التنفيذ | بعد OIDC | `browse` حتى إشعار ONE-BHD | 12.2 |
-| حسابي | مربوط في الكود 20 أغسطس 2026 — قلب `sso` بعد تحقق 302 الحي | `bhd-hisaby` | `browse`→`sso` | 12.3 |
+| حسابي | نعم — حي 23 أغسطس 2026 | نعم (هيدر) | `sso` | 12.3 |
 | نَسَب | نعم | نعم | `sso` | 12.4 |
 | بيتك | لم يُربط | — | `browse` | 12.5 |
 | المتجر | نعم | نعم | `sso` | 12.6 |
@@ -583,18 +583,19 @@ authorize وtoken دائماً على https://id.bhd-om.com وليس أصل ال
 | التقنيات الكاملة لوازن | _الإطار، القاعدة، المحافظ، النشر — يملأها فريق وازن_ |
 | ما لم يُوحَّد | المحافظ، المصاريف، الرحلات، الجمعيات |
 
-### 12.3 حسابي — `ainoamn/BHD-Pro`
+### 12.3 حسابي — `ainoamn/hisaby` (كان `BHD-Pro`)
 
 | البند | التوثيق |
 |---|---|
-| تاريخ التثبيت الحي | 20 أغسطس 2026 — OIDC + غلاف دخول + admin-entry |
+| تاريخ التثبيت الحي | 20–23 أغسطس 2026 — OIDC + §3.3 + `bhd_sub` + مشغّل الهيدر |
 | `client_id` | `bhd-hisaby` |
-| الأصل | `https://hisaby.bhd-om.com` (+ hisaby.pro / bhd-pro.vercel.app) |
-| كيف ثُبّت | Nest `bhd/start|callback|logout` + `admin-entry` · `users.bhd_sub` · بروكسي Next · غلاف `/login` · **callback حرفياً §0.7/§3.3:** `bhd_sub` → بريد موثّق (إبقاء الدور + مسح كلمة المرور) → وإلا إنشاء مستخدم + شركة STARTER (أدمن تلك الشركة فقط) |
-| حالة المشغّل | `mode: "browse"` حتى تحقق `GET …/api/auth/bhd/start` → 302 للهوية؛ ثم قلب إلى `"sso"` |
+| الأصل | `https://hisaby.bhd-om.com` (+ hisaby.pro / Vercel) |
+| كيف ثُبّت | Nest `bhd/start|callback|logout` + `admin-entry` · `users.bhd_sub` + `ensureBhdSubColumn` · بروكسي Next · غلاف `/login` · **callback حرفياً §0.7/§3.3:** `bhd_sub` → بريد موثّق (إبقاء الدور + مسح كلمة المرور) → وإلا إنشاء مستخدم + شركة STARTER (أدمن تلك الشركة فقط) |
+| كيف يعمل المشغّل | `Topbar` بعد الجلسة: `BhdAppSwitcher` + كتالوج `frontend/src/lib/bhd/apps.ts` · لوحة ثابتة داخل الشاشة (RTL) · صورة الهوية عبر `avatar` + `referrerPolicy=no-referrer` · خروج → `/api/auth/bhd/logout` |
+| حالة المشغّل | `mode: "sso"` (23 أغسطس 2026 في ONE-BHD ثم النسخ إلى حسابي) |
 | أسرار (أسماء فقط) | `BHD_IDENTITY_ISSUER`, `BHD_OAUTH_CLIENT_ID`, `BHD_OAUTH_CLIENT_SECRET`, `BHD_IDENTITY_TOKEN_SECRET` (= `IDENTITY_TOKEN_SECRET` أو احتياطي الهوية `AUTH_SECRET`), `JWT_*`, `FRONTEND_URL` |
-| عطل شائع | `?bhd=verify` — ناقص السر / JWKS فارغ (احتياطي userinfo). `?bhd=schema` — عمود ناقص (طُبّق على Neon 23 أغسطس + `ensureBhdSubColumn` كنَسَب) |
-| التقنيات | Next.js + NestJS + Prisma + Neon + Render/Vercel — `docs/HISABY-BHD-SSO-2026-08-20.md` · `docs/BHD-PRODUCT-SSO-ADMIN.md` |
+| عطل شائع | `?bhd=verify` — ناقص السر / JWKS فارغ (احتياطي userinfo). `?bhd=schema` — كان عموداً ناقصاً (طُبّق على Neon + ensure). لوحة خارج الشاشة — أُصلحت بـ fixed+clamp. صورة مكسورة — `restoreSession` كان يسقط `avatar` + referrer Google |
+| التقنيات | Next.js + NestJS + Prisma + Neon + Render/Vercel — `docs/HISABY-BHD-SSO-2026-08-20.md` · `docs/HISABY-BHD-SWITCHER-LIVE-2026-08-23.md` · `docs/BHD-PRODUCT-SSO-ADMIN.md` |
 | ما لم يُوحَّد | بيانات التشغيل (فواتير، كاشير، مطاعم، مخزون) — الأدوار تبقى محلية |
 
 ### 12.4 نَسَب — `ainoamn/Nasab`
