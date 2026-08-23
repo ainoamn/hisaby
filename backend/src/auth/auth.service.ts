@@ -621,9 +621,11 @@ export class AuthService {
         include: includeUser,
       });
       if (byEmail?.bhdSub && byEmail.bhdSub !== bhdSub) {
-        throw new UnauthorizedException(
-          'This email is already linked to another BHD identity',
-        );
+        throw new UnauthorizedException({
+          statusCode: 401,
+          code: 'BHD_EMAIL_LINKED_OTHER',
+          message: 'This email is already linked to another BHD identity',
+        });
       }
       if (byEmail && !byEmail.bhdSub) {
         user = await this.prisma.user.update({
@@ -663,12 +665,18 @@ export class AuthService {
       });
     }
     if (!user.isActive || !user.company?.isActive) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'BHD_INACTIVE',
+        message: 'User or company is inactive',
+      });
     }
     if (user.lockedUntil && user.lockedUntil > new Date()) {
-      throw new ForbiddenException(
-        `Account locked until ${user.lockedUntil.toISOString()}`,
-      );
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'BHD_LOCKED',
+        message: `Account locked until ${user.lockedUntil.toISOString()}`,
+      });
     }
 
     const { password: _, twoFactorSecret: __, ...safe } = user;

@@ -115,15 +115,29 @@ export class BhdSsoController {
       if (dest === '/') dest = '/dashboard';
       return res.redirect(302, `${origin}${dest}`);
     } catch (err: unknown) {
-      this.logger.warn(
-        `BHD callback failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
       const errCode = this.bhdErrorCode(err);
+      this.logger.warn(
+        `BHD callback failed code=${errCode || 'none'}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
       if (errCode === 'BHD_NO_LOCAL_USER') {
         return fail('/login?bhd=no_user');
       }
       if (errCode === 'BHD_EMAIL_UNVERIFIED') {
         return fail('/login?bhd=email');
+      }
+      if (errCode === 'BHD_EMAIL_LINKED_OTHER') {
+        return fail('/login?bhd=linked');
+      }
+      if (errCode === 'BHD_INACTIVE') {
+        return fail('/login?bhd=inactive');
+      }
+      if (errCode === 'BHD_LOCKED') {
+        return fail('/login?bhd=locked');
+      }
+      if (errCode === 'BHD_SCHEMA') {
+        return fail('/login?bhd=schema');
       }
       if (errCode === 'BHD_TOKEN_EXCHANGE' || errCode === 'BHD_MISSING_ID_TOKEN') {
         return fail('/login?bhd=token');
@@ -138,26 +152,43 @@ export class BhdSsoController {
       if (errCode === 'BHD_STATE_MISMATCH') {
         return fail('/login?bhd=state');
       }
-      return fail('/login?bhd=exchange');
+      const why = encodeURIComponent((errCode || 'unknown').slice(0, 40));
+      return fail(`/login?bhd=exchange&why=${why}`);
     }
   }
 
   private bhdErrorCode(err: unknown): string {
-    if (err instanceof ForbiddenException || err instanceof UnauthorizedException) {
-      const body = err.getResponse();
-      if (typeof body === 'object' && body && 'code' in body) {
-        return String((body as { code: string }).code);
+    const fromBody = (body: unknown): string => {
+      if (!body) return '';
+      if (typeof body === 'string') {
+        if (/No Hisaby user/i.test(body)) return 'BHD_NO_LOCAL_USER';
+        if (/already linked to another BHD/i.test(body)) return 'BHD_EMAIL_LINKED_OTHER';
+        if (/inactive/i.test(body)) return 'BHD_INACTIVE';
+        if (/Account locked/i.test(body)) return 'BHD_LOCKED';
+        if (/bhd_sub/i.test(body)) return 'BHD_SCHEMA';
+        return '';
       }
-    }
+      if (typeof body === 'object') {
+        const o = body as Record<string, unknown>;
+        if (typeof o.code === 'string' && o.code.startsWith('BHD_')) {
+          return o.code;
+        }
+        if (o.message != null) return fromBody(o.message);
+      }
+      return '';
+    };
+
     if (err && typeof err === 'object' && 'getResponse' in err) {
       try {
         const body = (err as ForbiddenException).getResponse();
-        if (typeof body === 'object' && body && 'code' in body) {
-          return String((body as { code: string }).code);
-        }
+        const coded = fromBody(body);
+        if (coded) return coded;
       } catch {
         /* ignore */
       }
+    }
+    if (err instanceof Error) {
+      return fromBody(err.message);
     }
     return '';
   }

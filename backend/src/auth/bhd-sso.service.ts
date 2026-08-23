@@ -237,8 +237,35 @@ export class BhdSsoService {
       tokenJson.access_token,
       saved.nonce,
     );
-    const session = await this.authService.loginWithBhdIdentity(claims, meta);
-    return { tokens: session, returnTo: saved.returnTo || '/dashboard' };
+    let session: { accessToken: string; refreshToken: string };
+    try {
+      session = await this.authService.loginWithBhdIdentity(claims, meta);
+    } catch (err: unknown) {
+      const prismaCode =
+        err && typeof err === 'object' && 'code' in err
+          ? String((err as { code: unknown }).code)
+          : '';
+      const msg = err instanceof Error ? err.message : String(err);
+      if (
+        prismaCode === 'P2022' ||
+        /bhd_sub/i.test(msg) ||
+        /column.*does not exist/i.test(msg)
+      ) {
+        throw new UnauthorizedException({
+          statusCode: 401,
+          code: 'BHD_SCHEMA',
+          message: 'Database missing bhd_sub — run prisma migrate deploy',
+        });
+      }
+      throw err;
+    }
+    return {
+      tokens: {
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+      },
+      returnTo: saved.returnTo || '/dashboard',
+    };
   }
 
   endSessionUrl(postLogoutRedirect?: string): string {

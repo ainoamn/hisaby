@@ -15,10 +15,10 @@ function bhdStartUrl(returnTo: string): string {
   return `/api/auth/bhd/start?returnTo=${encodeURIComponent(returnTo)}`;
 }
 
-function bhdErrorMessage(bhd: string | null): string | null {
+function bhdErrorMessage(bhd: string | null, why: string | null): string | null {
   switch (bhd) {
     case "no_user":
-      return "لا يوجد مستخدم حسابي مرتبط بهذا الحساب على الهوية. اطلب دعوة من مدير شركتك بنفس البريد، ثم أعد المحاولة.";
+      return "لا يوجد مستخدم حسابي مرتبط بهذا الحساب على الهوية. اطلب دعوة من مدير شركتك بنفس البريد المستخدم على id.bhd-om.com، ثم أعد المحاولة.";
     case "denied":
       return "تم رفض التفويض من بوابة BHD أو أُلغي الدخول.";
     case "state":
@@ -28,11 +28,21 @@ function bhdErrorMessage(bhd: string | null): string | null {
     case "token":
       return "فشل استبدال رمز التفويض مع الهوية. تأكد من تسجيل redirect_uri وBHD_OAUTH_CLIENT_SECRET على الخادم.";
     case "verify":
-      return "تعذّر التحقق من هوية BHD. إن استمر الخطأ بعد نشر API الأحدث: اضبط BHD_IDENTITY_TOKEN_SECRET على Render (= IDENTITY_TOKEN_SECRET من مشروع one-bhd)، أو تأكد أن البريد موثّق على الهوية وأن حسابك موجود في حسابي.";
+      return "تعذّر التحقق من هوية BHD. إن استمر: اضبط BHD_IDENTITY_TOKEN_SECRET على Render، أو وثّق بريدك على الهوية.";
     case "email":
       return "بريدك غير موثّق على id.bhd-om.com. وثّقه من بوابة الهوية ثم أعد المحاولة.";
+    case "linked":
+      return "هذا البريد مربوط بهوية BHD أخرى في حسابي. اخرج من الهوية الحالية أو راجع ربط الحساب مع الدعم.";
+    case "inactive":
+      return "حسابك أو شركتك في حسابي غير نشط. راجع مدير النظام.";
+    case "locked":
+      return "الحساب مقفل مؤقتاً بسبب محاولات دخول فاشلة. انتظر ثم أعد المحاولة.";
+    case "schema":
+      return "قاعدة بيانات حسابي ينقصها عمود bhd_sub. نفّذ prisma migrate deploy على Render ثم أعد المحاولة.";
     case "exchange":
-      return "تعذّر إكمال الدخول الموحّد بعد الهوية. أعد المحاولة أو راجع سجلات API.";
+      return why && why !== "unknown"
+        ? `تعذّر إكمال الدخول بعد الهوية (${why}). إن لم يكن لديك مستخدم في حسابي بنفس بريد الهوية، اطلب دعوة أولاً.`
+        : "تعذّر إكمال الدخول بعد الهوية. غالباً لا يوجد مستخدم حسابي بنفس بريدك على الهوية — اطلب دعوة أو راجع سجلات API.";
     case "error":
       return "تعذّر إكمال الدخول الموحّد. أعد المحاولة، وإن استمر العطل راجع أن حسابك موجود في حسابي بنفس البريد.";
     default:
@@ -48,8 +58,9 @@ function LoginShell() {
   );
   const local = searchParams.get("local") === "1";
   const bhd = searchParams.get("bhd");
+  const why = searchParams.get("why");
   const isAdminNext = nextPath.startsWith("/admin");
-  const bhdError = bhdErrorMessage(bhd);
+  const bhdError = bhdErrorMessage(bhd, why);
   /** Stop SSO auto-redirect when callback already failed — avoids flash loop. */
   const stopAutoSso = !!bhdError || (local && !isAdminNext);
 
