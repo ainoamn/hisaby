@@ -11,7 +11,7 @@
 |------|----------|
 | عمود | `users.bhd_sub` (unique) — هجرة `20260820120000_bhd_identity_sub` |
 | Nest | `GET /api/auth/bhd/start` · `callback` · `logout` · `GET /api/auth/admin-entry` |
-| ربط مستخدم | `bhd_sub` ثم بريد موثّق مع الإبقاء على الدور؛ لا إنشاء شركة من الهوية |
+| ربط مستخدم | **حرفياً §3.3:** (1) `bhd_sub` (2) بريد موثّق + إبقاء الدور + مسح كلمة المرور (3) وإلا إنشاء مستخدم بلا كلمة مرور + شركة STARTER (أدمن تلك الشركة فقط — ليس أدمن منصة من الهوية) |
 | واجهة | مسارات Next `app/api/auth/bhd/*` و`admin-entry` تبروكسي Nest وتعيد `Set-Cookie` على منشأ الواجهة (لا تعتمد على rewrite وحده) |
 | `/login` | غلاف → SSO؛ `?local=1` طوارئ فقط؛ `/admin` → `admin-entry` |
 | `/register` | تحويل إلى `id.bhd-om.com/login` |
@@ -26,30 +26,24 @@
 BHD_IDENTITY_ISSUER=https://id.bhd-om.com
 BHD_OAUTH_CLIENT_ID=bhd-hisaby
 BHD_OAUTH_CLIENT_SECRET=
-# مطلوب حالياً: نفس قيمة IDENTITY_TOKEN_SECRET في مشروع الهوية (ONE-BHD)
-# لأن JWKS فارغ والتوقيع HS256 — بدونها يفشل الدخول بـ ?bhd=verify أو ?bhd=exchange
+# مُستحسن: نفس IDENTITY_TOKEN_SECRET (احتياطي userinfo يغطي غياب السر)
 BHD_IDENTITY_TOKEN_SECRET=
-# اختياري إن كان Host يمر عبر البروكسي:
-# BHD_OAUTH_REDIRECT_URI=https://hisaby.bhd-om.com/api/auth/bhd/callback
 FRONTEND_URL=https://hisaby.bhd-om.com
 CORS_ORIGIN=https://hisaby.bhd-om.com,https://bhd-pro.vercel.app,https://www.hisaby.pro
 JWT_REFRESH_EXPIRATION=48h
 ```
 
-على الهوية: سجّل `redirect_uri` لكل منشأ مستخدم (hisaby.bhd-om.com، bhd-pro.vercel.app، localhost:3000).
-
 ---
 
 ## تحقق قبل قلب `mode=sso` في ONE-BHD
 
-1. `curl -sI "https://<origin>/api/auth/bhd/start?returnTo=/"` → **302** إلى `id.bhd-om.com/oauth/authorize` + `Set-Cookie: bhd_oauth_state`
-2. دخول هوية → callback → **`Set-Cookie: bhd_access`/`bhd_refresh` على نطاق الواجهة** → **`/dashboard`** (حتى لو `returnTo=/`) لمستخدم موجود بنفس البريد + `bhd_sub` مملوء
-3. أدمن قديم بنفس البريد يبقى `ADMIN` / منصة
-4. مستخدم هوية بلا صف حسابي → `?bhd=no_user` (دعوة مطلوبة)
-5. `/api/auth/admin-entry` → SSO → `/admin`
-6. بعد الدخول: `/backend-api/auth/me` يعيد 200 مع الكوكي (جلسة فعّالة)
+1. `GET {origin}/api/auth/bhd/start` → **302** إلى `id.bhd-om.com`
+2. مستخدم هوية جديد → callback → صف `bhd_sub` + شركة STARTER → `/dashboard`
+3. أدمن قديم بنفس البريد → يبقى `ADMIN` محلياً
+4. `/api/auth/admin-entry` → SSO → `/admin`
+5. جلسة `bhd_id` → منتج ثانٍ بلا كلمة مرور
 
-ثم في ONE-BHD: `app/lib/bhd/apps.ts` عنصر حسابي `mode: "sso"`.
+ثم في ONE-BHD: `apps.ts` حسابي `mode: "sso"`.
 
 ---
 
@@ -57,27 +51,15 @@ JWT_REFRESH_EXPIRATION=48h
 
 1. `npx prisma migrate deploy` على API  
 2. Deploy Render API + Vercel Frontend  
-3. ضبط env أعلاه  
+3. ضبط env  
 4. إبلاغ ONE-BHD لقلب الكتالوج
 
 ---
 
-## عطل شائع (20 أغسطس 2026)
+## أعطال
 
-**العَرَض:** بعد دخول الهوية تُعاد إلى الصفحة الرئيسية ولا تبقى جلسة (لوحة التحكم تطلب دخولاً من جديد).
-
-**السبب:** الاعتماد على `rewrites` في `next.config` نحو Render يسقط أو يُخطئ نطاق `Set-Cookie`؛ وجلسة الدخول المحلي كانت تعمل لأن التوكن يُحفظ في الذاكرة من JSON، بينما SSO يعتمد على الكوكي فقط. كما أن البوابة ترسل `returnTo=/`.
-
-**الإصلاح:** مسارات App Router تبروكسي Nest وتعيد الكوكيز عبر `cookies.set` على منشأ الواجهة؛ و`returnTo=/` يُحوَّل إلى `/dashboard`.
-
-**عَرَض 2:** وميض على `/login?bhd=error` مع «جاري التحويل…» بلا توقف.
-
-**السبب:** غلاف `/login` يعيد التوجيه تلقائياً إلى `start` حتى بعد فشل الـ callback → حلقة.
-
-**الإصلاح:** عند `bhd=error|denied|state|params|exchange|no_user` تتوقف الحلقة وتظهر رسالة + زر إعادة محاولة.
-
-**عَرَض 3:** `/login?bhd=exchange` أو `verify` بعد نجاح الهوية.
-
+**`?bhd=verify`:** JWKS فارغ / سر HS256 — احتياطي userinfo بعد تبادل الكود.  
+**`?bhd=exchange` (قبل 23 أغسطس مساءً):** كان يرفض إنشاء المستخدم خلافاً لـ §3.3 — أُصلح بإنشاء صف المنتج.
 **السبب:** اكتشاف الهوية يعلن `HS256` و`/oauth/jwks.json` يعيد `{"keys":[]}` بينما حسابي كان يتحقق عبر JWKS فقط.
 
 **الإصلاح:** التحقق بـ HS256 عبر `BHD_IDENTITY_TOKEN_SECRET` (نسخة من `IDENTITY_TOKEN_SECRET` على ONE-BHD) مع الإبقاء على JWKS عند تفعيل RS256 لاحقاً.

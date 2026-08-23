@@ -503,7 +503,7 @@ CREATE INDEX IF NOT EXISTS users_bhd_sub_idx ON <users>(bhd_sub);
 |---|---|---|---|---|
 | الهوية / البوابة | نعم (هي المُصدِر) | نعم | portal `sso` | القسم 6 أعلاه + 12.1 |
 | وازن | قيد التنفيذ | بعد OIDC | `browse` حتى إشعار ONE-BHD | 12.2 |
-| حسابي | نعم (20 أغسطس 2026) | بعد جلسة المنتج | `browse` حتى قلب ONE-BHD | 12.3 · `HISABY-BHD-SSO-2026-08-20.md` |
+| حسابي | مربوط في الكود 20 أغسطس 2026 — قلب `sso` بعد تحقق 302 الحي | `bhd-hisaby` | `browse`→`sso` | 12.3 |
 | نَسَب | نعم | نعم | `sso` | 12.4 |
 | بيتك | لم يُربط | — | `browse` | 12.5 |
 | المتجر | نعم | نعم | `sso` | 12.6 |
@@ -583,26 +583,19 @@ authorize وtoken دائماً على https://id.bhd-om.com وليس أصل ال
 | التقنيات الكاملة لوازن | _الإطار، القاعدة، المحافظ، النشر — يملأها فريق وازن_ |
 | ما لم يُوحَّد | المحافظ، المصاريف، الرحلات، الجمعيات |
 
-### 12.3 حسابي — `ainoamn/BHD-Pro` (qootk-pro-complete)
+### 12.3 حسابي — `ainoamn/BHD-Pro`
 
 | البند | التوثيق |
 |---|---|
-| تاريخ التثبيت | 20 أغسطس 2026 — OIDC + غلاف دخول + `admin-entry` على `main`؛ إصلاح كوكي الجلسة عبر مسارات Next (نفس اليوم) |
+| تاريخ التثبيت الحي | 20 أغسطس 2026 — OIDC + غلاف دخول + admin-entry |
 | `client_id` | `bhd-hisaby` |
-| نطاق BHD | `https://hisaby.bhd-om.com` (+ `hisaby.pro` / `bhd-pro.vercel.app` إضافي) |
-| `redirect_uri` | `{origin}/api/auth/bhd/callback` (Host الواجهة → مسار Next يبروكسي Nest) |
-| كيف ثُبّت | القسم 4 + **0.7** + **4.9**: `User.bhdSub` · Nest `BhdSsoController` · مسارات Next `app/api/auth/bhd/{start,callback,logout}` و`admin-entry` تبروكسي Nest وتعيد `Set-Cookie` Host-only · غلاف `/login`→SSO · `/register`→`id.bhd-om.com` · `returnTo=/`→`/dashboard` · ربط مستخدم قديم بالبريد مع الإبقاء على الدور · لا إنشاء شركة من الهوية |
-| كيف يعمل الدخول | `start` → `https://id.bhd-om.com/oauth/authorize` → `callback` يستبدل الكود → تحقق `id_token` (HS256/JWKS) أو احتياطي `userinfo` → upsert على `bhd_sub` (يحفظ الدور) → كوكي الجلسة على الواجهة → `/dashboard` |
-| ملفات `start` / `callback` | Nest: `backend/src/auth/bhd-sso.*` · Next: `frontend/src/app/api/auth/bhd/*` · `frontend/src/lib/bhd-sso-proxy.ts` · `admin-entry` |
-| التنقل الصامت | كوكي `bhd_id` على مضيف الهوية فقط؛ حسابي لا يقرأ كوكي البوابة |
-| الإدارة | منصة `/admin`: `PLATFORM_ADMIN_EMAILS` / `PlatformOperator` محلياً بعد SSO. أدمن شركة = `User.role=ADMIN` محلي مربوط بـ `bhd_sub`. مسار: `GET /api/auth/admin-entry` |
-| جلسة المنتج | خمول منزلق 48 ساعة (كوكي refresh + صف Session) |
-| أسرار (أسماء فقط) | `BHD_IDENTITY_ISSUER`, `BHD_OAUTH_CLIENT_ID`, `BHD_OAUTH_CLIENT_SECRET`, `BHD_IDENTITY_TOKEN_SECRET` (= `IDENTITY_TOKEN_SECRET` أو احتياطي الهوية `AUTH_SECRET`), `BHD_OAUTH_REDIRECT_URI` (اختياري), `JWT_*`, `FRONTEND_URL`, `CORS_ORIGIN`, `BACKEND_URL` (Vercel) |
-| حادثة 23 أغسطس | `?bhd=verify` عند نقص السر؛ أُصلح باحتياطي userinfo + توثيق الحقول من ONE-BHD — `docs/HISABY-BHD-SSO-TOKEN-VERIFY-2026-08-23.md` |
-| التقنيات الكاملة | Frontend: Next.js 15 · React · Tailwind · Vercel. Backend: NestJS 11 · Prisma · PostgreSQL (Neon) · Render `hisaby-api`. مصادقة منتج: JWT في كوكي. وحدات: محاسبة، POS، مطاعم، مخزون، فواتير… |
-| ما لم يُوحَّد | الشركات، الفواتير، الضريبة، الكاشير، المطبخ، المخزون، أدوار الشركة |
-| قلب `mode` إلى `sso` | يُطلب في ONE-BHD `apps.ts` بعد تحقق 302 حي لـ `start` + جلسة كوكي على الواجهة |
-| مستودع التنفيذ | `ainoamn/BHD-Pro` · دليل: `docs/HISABY-BHD-SSO-2026-08-20.md` |
+| الأصل | `https://hisaby.bhd-om.com` (+ hisaby.pro / bhd-pro.vercel.app) |
+| كيف ثُبّت | Nest `bhd/start|callback|logout` + `admin-entry` · `users.bhd_sub` · بروكسي Next · غلاف `/login` · **callback حرفياً §0.7/§3.3:** `bhd_sub` → بريد موثّق (إبقاء الدور + مسح كلمة المرور) → وإلا إنشاء مستخدم + شركة STARTER (أدمن تلك الشركة فقط) |
+| حالة المشغّل | `mode: "browse"` حتى تحقق `GET …/api/auth/bhd/start` → 302 للهوية؛ ثم قلب إلى `"sso"` |
+| أسرار (أسماء فقط) | `BHD_IDENTITY_ISSUER`, `BHD_OAUTH_CLIENT_ID`, `BHD_OAUTH_CLIENT_SECRET`, `BHD_IDENTITY_TOKEN_SECRET` (= `IDENTITY_TOKEN_SECRET` أو احتياطي الهوية `AUTH_SECRET`), `JWT_*`, `FRONTEND_URL` |
+| عطل شائع | `?bhd=verify` — ناقص السر / JWKS فارغ (احتياطي userinfo). سابقاً `?bhd=exchange` بسبب رفض إنشاء المستخدم — أُصلح 23 أغسطس وفق §3.3 |
+| التقنيات | Next.js + NestJS + Prisma + Neon + Render/Vercel — `docs/HISABY-BHD-SSO-2026-08-20.md` · `docs/BHD-PRODUCT-SSO-ADMIN.md` |
+| ما لم يُوحَّد | بيانات التشغيل (فواتير، كاشير، مطاعم، مخزون) — الأدوار تبقى محلية |
 
 ### 12.4 نَسَب — `ainoamn/Nasab`
 

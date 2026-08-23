@@ -589,8 +589,15 @@ export class AuthService {
   }
 
   /**
-   * BHD Identity SSO (§0.7): link by bhd_sub, else verified email keeping local role.
-   * Does not create companies — invite/register remains product-local or identity-only signup + invite.
+   * BHD Identity SSO — BHD-PRODUCT-SSO-ADMIN §3.3 / UNIFIED §0.7 & §4.5 (literal):
+   * 1) bhd_sub match → update profile, keep role, open session
+   * 2) verified email match + empty bhd_sub → set bhd_sub, keep role, clear local password
+   * 3) else → create product user with default role (not identity-granted admin on an existing tenant)
+   * 4) prior product session cleared in callback before cookies (controller)
+   *
+   * Hisaby is multi-tenant: step 3 provisions a STARTER company. The first user is
+   * company ADMIN (owner of that new tenant only) — same as Google first-login — never
+   * platform-wide admin from Identity.
    */
   async loginWithBhdIdentity(
     claims: {
@@ -598,11 +605,18 @@ export class AuthService {
       email: string;
       name?: string;
       picture?: string;
+      preferred_username?: string;
     },
     meta: { ipAddress?: string; userAgent?: string } = {},
   ) {
     const email = claims.email.trim().toLowerCase();
     const bhdSub = claims.sub;
+    const displayName = (
+      claims.name ||
+      claims.preferred_username ||
+      email.split('@')[0] ||
+      'مستخدم BHD'
+    ).trim();
     const includeUser = {
       company: true,
       defaultWarehouse: {
@@ -628,12 +642,14 @@ export class AuthService {
         });
       }
       if (byEmail && !byEmail.bhdSub) {
+        // §3.3 step 2 — keep local role/admin; clear password for general local login
         user = await this.prisma.user.update({
           where: { id: byEmail.id },
           data: {
             bhdSub,
             name: (claims.name || byEmail.name).trim(),
             avatar: claims.picture || byEmail.avatar,
+            password: null,
             loginAttempts: 0,
             lockedUntil: null,
             lastLoginAt: new Date(),
@@ -642,6 +658,7 @@ export class AuthService {
         });
       }
     } else {
+      // §3.3 step 1
       user = await this.prisma.user.update({
         where: { id: user.id },
         data: {
@@ -657,13 +674,44 @@ export class AuthService {
     }
 
     if (!user) {
-      throw new ForbiddenException({
-        statusCode: 403,
-        code: 'BHD_NO_LOCAL_USER',
-        message:
-          'No Hisaby user for this BHD identity. Ask your company admin for an invite matching your email, then sign in again.',
+      // §3.3 step 3 / §4.5 — create product row (no local password)
+      const countryPack = resolveCountryPack(undefined);
+      const company = await this.prisma.company.create({
+        data: {
+          name: `شركة ${displayName}`.slice(0, 120),
+          email,
+          plan: 'STARTER',
+          currency: countryPack.currency,
+          language: countryPack.language,
+          country: countryPack.country,
+          timezone: countryPack.timezone,
+          logo: claims.picture || undefined,
+          posLinkedAt: new Date(),
+          restoLinkedAt: new Date(),
+        },
       });
+      await this.createDefaultAccounts(company.id);
+      await ensureDefaultCostCentersAndProjects(this.prisma, company.id);
+
+      user = await this.prisma.user.create({
+        data: {
+          name: displayName,
+          email,
+          password: null,
+          bhdSub,
+          avatar: claims.picture || null,
+          // Owner of a newly provisioned tenant only — not Identity-granted cross-product admin
+          role: 'ADMIN',
+          companyId: company.id,
+          lastLoginAt: new Date(),
+        },
+        include: includeUser,
+      });
+      this.logger.log(
+        `BHD SSO provisioned company=${company.id} user=${user.id} bhd_sub=${bhdSub}`,
+      );
     }
+
     if (!user.isActive || !user.company?.isActive) {
       throw new UnauthorizedException({
         statusCode: 401,
