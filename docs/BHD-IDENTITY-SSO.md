@@ -285,12 +285,14 @@ grant_type=refresh_token
 
 التحقق عند المنتج **إلزامي على الخادم:**
 
-1. جلب JWKS من `jwks_uri` (كاش 10 دقائق) أو `jose` مع `IDENTITY` issuer.
+1. جلب JWKS من `jwks_uri` (كاش 10 دقائق) أو تحقق HS256 بـ `IDENTITY_TOKEN_SECRET` / `BHD_IDENTITY_TOKEN_SECRET` بينما JWKS فارغ.
 2. `iss` === `BHD_IDENTITY_ISSUER`
 3. `aud` === `BHD_OAUTH_CLIENT_ID`
 4. `exp` في المستقبل
 5. `nonce` يطابق القيمة المخزّنة في كوكي/جلسة الـ callback
 6. `email_verified === true` وإلا ارفض الدخول (إلا مسار بريد الهوية نفسه بعد تحقق لاحق — للمنتجات ارفض إن لم يكن موثّقاً)
+
+**احتياطي مقبول (حسابي 23 أغسطس 2026):** بعد نجاح `authorization_code` + PKCE، إن فشل تحقق التوقيع وJWKS فارغ، يجوز استدعاء `GET /oauth/userinfo` بـ `access_token` على نفس الـ issuer (TLS) مع الإبقاء على فحص `nonce` من حمولة `id_token`. لا يُستبدل هذا بمصادقة من المتصفح.
 
 ---
 

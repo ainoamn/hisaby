@@ -10,30 +10,30 @@
 |------|--------|
 | المستودع | https://github.com/ainoamn/BHD-Pro (قد يُعاد توجيهه إلى `ainoamn/hisaby`) |
 | الفرع | **`main`** |
-| الالتزام | **`853b171`** — تحقق id_token بـ HS256 |
-| API الحي | `commit: 853b171…` على `hisaby-api.onrender.com` |
+| الهوية | [ainoamn/ONE-BHD](https://github.com/ainoamn/ONE-BHD) · `id.bhd-om.com` · HS256 · JWKS فارغ |
 | الواجهة | `hisaby.bhd-om.com` / Vercel |
 
 ### الدخول الموحّد BHD
 
 | الحالة | التفاصيل |
 |--------|----------|
-| الكود | start / callback / admin-entry + `bhd_sub` منشور |
-| عطل حي شائع | `?bhd=verify` → ناقص `BHD_IDENTITY_TOKEN_SECRET` على Render |
-| الإصلاح التشغيلي | انسخ `IDENTITY_TOKEN_SECRET` من `one-bhd` → Render كـ `BHD_IDENTITY_TOKEN_SECRET` ثم أعد التشغيل |
-| وثيقة الحادثة | [`HISABY-BHD-SSO-TOKEN-VERIFY-2026-08-23.md`](./HISABY-BHD-SSO-TOKEN-VERIFY-2026-08-23.md) |
-| تثبيت SSO | [`HISABY-BHD-SSO-2026-08-20.md`](./HISABY-BHD-SSO-2026-08-20.md) |
-| كتالوج ONE-BHD | حسابي ما زال `mode: browse` حتى نجاح دخول حي ثم قلب إلى `sso` |
+| الكود | start / callback / admin-entry + `bhd_sub` + احتياطي **userinfo** بعد تبادل الكود |
+| حقول الهوية | `sub`, `email`, `email_verified` (إلزامي)، `name`, `picture`, `preferred_username`, `phone_number` |
+| عطل سابق | `?bhd=verify` عندما ينقص سر HS256 على Render |
+| بعد النشر | يدخل عبر userinfo حتى بدون السر؛ السر ما زال مُستحسناً |
+| جاهزية | `GET /api/auth/bhd/status` |
+| وثيقة | [`HISABY-BHD-SSO-TOKEN-VERIFY-2026-08-23.md`](./HISABY-BHD-SSO-TOKEN-VERIFY-2026-08-23.md) |
+| كتالوج ONE-BHD | `mode: browse` حتى نجاح حي ثم `sso` |
 
 ---
 
 ## 2) مهام مفتوحة
 
-1. [ ] ضبط `BHD_IDENTITY_TOKEN_SECRET` على Render وإعادة تشغيل  
-2. [ ] دخول ناجح → `/dashboard` + صف فيه `bhd_sub`  
-3. [ ] قلب `mode: "sso"` في ONE-BHD `apps.ts`  
-4. [ ] واتساب Meta `#200` — Permanent Token  
-5. [ ] `HARDENING_STRICT_BOOT=true` بعد TOTP + S3 (أو الإبقاء على override dataurl موثّقاً)
+1. [ ] انتظار Deploy Live لـ Render `hisaby-api` على commit الذي فيه userinfo fallback  
+2. [ ] `GET /api/health` يظهر commit الجديد · أعد دخول SSO  
+3. [ ] (مُستحسن) ضبط `BHD_IDENTITY_TOKEN_SECRET` على Render  
+4. [ ] قلب `mode: "sso"` في ONE-BHD بعد نجاح الدخول  
+5. [ ] واتساب Meta `#200` — Permanent Token  
 
 ---
 
@@ -43,7 +43,7 @@
 git fetch origin
 git switch main
 git pull origin main
-git rev-parse --short HEAD   # ≥ 853b171
+git rev-parse --short HEAD
 ```
 
 لا تترك تعديلات غير مرفوعة على جهازين. الأسرار على Render/Vercel فقط — ليست في Git.

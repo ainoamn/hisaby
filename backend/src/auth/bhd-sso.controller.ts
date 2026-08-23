@@ -180,6 +180,15 @@ export class BhdSsoController {
     return res.redirect(302, this.bhdSso.endSessionUrl(`${origin}/`));
   }
 
+  @Get('bhd/status')
+  @SkipThrottle()
+  @ApiOperation({
+    summary: 'BHD SSO readiness (no secrets) — identityTokenSecretConfigured etc.',
+  })
+  status() {
+    return this.bhdSso.status();
+  }
+
   @Get('admin-entry')
   @SkipThrottle()
   @ApiOperation({

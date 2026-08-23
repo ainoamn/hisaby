@@ -28,7 +28,7 @@ function bhdErrorMessage(bhd: string | null): string | null {
     case "token":
       return "فشل استبدال رمز التفويض مع الهوية. تأكد من تسجيل redirect_uri وBHD_OAUTH_CLIENT_SECRET على الخادم.";
     case "verify":
-      return "تعذّر التحقق من رمز الهوية. على Render يجب ضبط BHD_IDENTITY_TOKEN_SECRET بنفس قيمة IDENTITY_TOKEN_SECRET في مشروع الهوية (حالياً التوقيع HS256 وJWKS فارغ).";
+      return "تعذّر التحقق من هوية BHD. إن استمر الخطأ بعد نشر API الأحدث: اضبط BHD_IDENTITY_TOKEN_SECRET على Render (= IDENTITY_TOKEN_SECRET من مشروع one-bhd)، أو تأكد أن البريد موثّق على الهوية وأن حسابك موجود في حسابي.";
     case "email":
       return "بريدك غير موثّق على id.bhd-om.com. وثّقه من بوابة الهوية ثم أعد المحاولة.";
     case "exchange":

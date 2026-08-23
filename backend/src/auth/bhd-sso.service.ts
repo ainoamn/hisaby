@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'crypto';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { createRemoteJWKSet, decodeJwt, jwtVerify } from 'jose';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
 
@@ -21,6 +21,7 @@ type OAuthState = {
   redirectUri: string;
 };
 
+/** Claims aligned with ONE-BHD `IdentityClaims` / userinfo (BHD-IDENTITY-SSO §4). */
 type IdClaims = {
   sub: string;
   email: string;
@@ -28,6 +29,7 @@ type IdClaims = {
   name?: string;
   picture?: string;
   preferred_username?: string;
+  phone_number?: string;
   nonce?: string;
 };
 
@@ -74,6 +76,22 @@ export class BhdSsoService {
       this.clientId() &&
       (process.env.BHD_OAUTH_REDIRECT_URI || process.env.FRONTEND_URL)
     );
+  }
+
+  /** Public readiness flags only — never expose secret values. */
+  status() {
+    return {
+      configured: this.isConfigured(),
+      issuer: this.issuer(),
+      clientId: this.clientId(),
+      identityTokenSecretConfigured: !!this.identityTokenSecret(),
+      clientSecretConfigured: !!this.clientSecret(),
+      verifyModes: [
+        'HS256+BHD_IDENTITY_TOKEN_SECRET',
+        'JWKS',
+        'userinfo_after_code_exchange',
+      ] as const,
+    };
   }
 
   issuer(): string {
@@ -202,16 +220,23 @@ export class BhdSsoService {
         message: 'BHD token exchange failed',
       });
     }
-    const tokenJson = (await tokenRes.json()) as { id_token?: string };
-    if (!tokenJson.id_token) {
+    const tokenJson = (await tokenRes.json()) as {
+      id_token?: string;
+      access_token?: string;
+    };
+    if (!tokenJson.id_token && !tokenJson.access_token) {
       throw new UnauthorizedException({
         statusCode: 401,
         code: 'BHD_MISSING_ID_TOKEN',
-        message: 'Missing id_token',
+        message: 'Missing id_token and access_token',
       });
     }
 
-    const claims = await this.verifyIdToken(tokenJson.id_token, saved.nonce);
+    const claims = await this.resolveClaims(
+      tokenJson.id_token,
+      tokenJson.access_token,
+      saved.nonce,
+    );
     const session = await this.authService.loginWithBhdIdentity(claims, meta);
     return { tokens: session, returnTo: saved.returnTo || '/dashboard' };
   }
@@ -226,13 +251,92 @@ export class BhdSsoService {
     return url.toString();
   }
 
-  /** Shared HS256 secret while Identity JWKS is empty (see BHD-IDENTITY-SSO §2). */
+  /**
+   * Shared HS256 secret while Identity JWKS is empty.
+   * Identity signs with IDENTITY_TOKEN_SECRET || AUTH_SECRET (ONE-BHD issuer.ts).
+   */
   private identityTokenSecret(): string {
     return (
       process.env.BHD_IDENTITY_TOKEN_SECRET ||
       process.env.IDENTITY_TOKEN_SECRET ||
       ''
     ).trim();
+  }
+
+  /**
+   * 1) Cryptographic id_token verify (HS256 secret or JWKS).
+   * 2) Else userinfo with access_token after successful code+PKCE exchange
+   *    (TLS to issuer; no shared signing secret required on Render).
+   */
+  private async resolveClaims(
+    idToken: string | undefined,
+    accessToken: string | undefined,
+    expectedNonce: string,
+  ): Promise<IdClaims> {
+    if (idToken) {
+      try {
+        return await this.verifyIdToken(idToken, expectedNonce);
+      } catch (err: unknown) {
+        this.logger.warn(
+          `BHD id_token verify failed, trying userinfo: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+
+    if (!accessToken) {
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'BHD_ID_TOKEN_VERIFY',
+        message: 'Invalid id_token and no access_token for userinfo',
+      });
+    }
+
+    if (idToken) {
+      this.assertNonceOnUnverifiedIdToken(idToken, expectedNonce);
+    }
+
+    return this.claimsFromUserInfo(accessToken);
+  }
+
+  private assertNonceOnUnverifiedIdToken(idToken: string, expectedNonce: string) {
+    try {
+      const payload = decodeJwt(idToken);
+      if (payload.nonce !== expectedNonce) {
+        throw new UnauthorizedException({
+          statusCode: 401,
+          code: 'BHD_NONCE',
+          message: 'Invalid nonce',
+        });
+      }
+    } catch (err: unknown) {
+      if (err instanceof UnauthorizedException) throw err;
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'BHD_ID_TOKEN_VERIFY',
+        message: 'Could not read id_token nonce',
+      });
+    }
+  }
+
+  private async claimsFromUserInfo(accessToken: string): Promise<IdClaims> {
+    const res = await fetch(`${this.issuer()}/oauth/userinfo`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      this.logger.warn(
+        `BHD userinfo failed: ${res.status} ${text.slice(0, 200)}`,
+      );
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'BHD_ID_TOKEN_VERIFY',
+        message: 'Identity userinfo failed',
+      });
+    }
+    const body = (await res.json()) as Record<string, unknown>;
+    return this.normalizeClaims(body);
   }
 
   private async verifyIdToken(idToken: string, expectedNonce: string): Promise<IdClaims> {
@@ -244,7 +348,9 @@ export class BhdSsoService {
       payload = await this.verifyIdTokenPayload(idToken, issuer, audience);
     } catch (err: unknown) {
       this.logger.warn(
-        `BHD id_token verify failed: ${err instanceof Error ? err.message : String(err)}`,
+        `BHD id_token crypto verify failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
       );
       throw new UnauthorizedException({
         statusCode: 401,
@@ -260,11 +366,15 @@ export class BhdSsoService {
         message: 'Invalid nonce',
       });
     }
+    return this.normalizeClaims(payload);
+  }
+
+  private normalizeClaims(payload: Record<string, unknown>): IdClaims {
     if (typeof payload.sub !== 'string' || typeof payload.email !== 'string') {
       throw new UnauthorizedException({
         statusCode: 401,
         code: 'BHD_CLAIMS',
-        message: 'Invalid id_token claims',
+        message: 'Invalid identity claims (need sub + email)',
       });
     }
     if (payload.email_verified !== true && payload.email_verified !== 'true') {
@@ -284,6 +394,8 @@ export class BhdSsoService {
         typeof payload.preferred_username === 'string'
           ? payload.preferred_username
           : undefined,
+      phone_number:
+        typeof payload.phone_number === 'string' ? payload.phone_number : undefined,
     };
   }
 
@@ -319,7 +431,7 @@ export class BhdSsoService {
       }
     } else {
       this.logger.warn(
-        'BHD_IDENTITY_TOKEN_SECRET unset — required while Identity signs HS256 (JWKS empty)',
+        'BHD_IDENTITY_TOKEN_SECRET unset — will use JWKS then userinfo fallback',
       );
     }
 
