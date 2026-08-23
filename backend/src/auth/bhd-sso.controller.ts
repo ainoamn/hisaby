@@ -199,8 +199,16 @@ export class BhdSsoController {
     if (err && typeof err === 'object' && 'code' in err) {
       const c = String((err as { code: unknown }).code);
       if (c.startsWith('BHD_')) return c;
-      if (c === 'P2022') return 'BHD_SCHEMA';
       if (c === 'P2002') return 'BHD_PROVISION';
+      // P2022 only if message names bhd_sub (avoid false ?bhd=schema)
+      if (c === 'P2022') {
+        const m =
+          err instanceof Error
+            ? err.message
+            : String((err as { message?: unknown }).message || '');
+        if (/bhd_sub/i.test(m)) return 'BHD_SCHEMA';
+        return 'BHD_PROVISION';
+      }
     }
 
     if (err && typeof err === 'object' && 'getResponse' in err) {

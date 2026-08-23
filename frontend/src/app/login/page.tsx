@@ -38,7 +38,7 @@ function bhdErrorMessage(bhd: string | null, why: string | null): string | null 
     case "locked":
       return "الحساب مقفل مؤقتاً بسبب محاولات دخول فاشلة. انتظر ثم أعد المحاولة.";
     case "schema":
-      return "قاعدة بيانات حسابي ينقصها عمود bhd_sub. نفّذ prisma migrate deploy على Render ثم أعد المحاولة.";
+      return "عمود bhd_sub غير جاهز بعد على قاعدة حسابي. أعد المحاولة عبر BHD؛ إن استمر انتظر دقيقة حتى يكتمل إقلاع الـ API ثم أعد المحاولة.";
     case "provision":
       return why
         ? `تعذّر إنشاء مستخدم حسابي بعد الهوية (${why}). أعد المحاولة؛ إن استمر راجع سجلات API.`

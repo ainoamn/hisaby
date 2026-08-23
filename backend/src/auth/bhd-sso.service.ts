@@ -258,11 +258,15 @@ export class BhdSsoService {
           ? String((err as { code: unknown }).code)
           : '';
       const msg = err instanceof Error ? err.message : String(err);
-      if (
-        prismaCode === 'P2022' ||
-        /bhd_sub/i.test(msg) ||
-        /column.*does not exist/i.test(msg)
-      ) {
+      // Only bhd_sub — other missing columns must not look like BHD_SCHEMA
+      if (prismaCode === 'P2022' && /bhd_sub/i.test(msg)) {
+        throw new UnauthorizedException({
+          statusCode: 401,
+          code: 'BHD_SCHEMA',
+          message: 'Database missing bhd_sub — run prisma migrate deploy',
+        });
+      }
+      if (/bhd_sub/i.test(msg) && /does not exist|P2022/i.test(msg)) {
         throw new UnauthorizedException({
           statusCode: 401,
           code: 'BHD_SCHEMA',
