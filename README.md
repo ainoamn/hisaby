@@ -318,7 +318,8 @@ POST {API_PUBLIC_URL}/api/payments/webhooks/paypal
 | POST | `/integrations/bhd-r/sync` | سحب فوري للعقارات والعناوين والفواتير والوارد/الصادر |
 | POST | `/integrations/bhd-r/events` | استقبال أحداث العقارات — `Authorization: Bearer qk_bhdr_…` (idempotent) |
 
-دليل الربط: [`docs/HISABY-BHD-R-INTEGRATION.md`](docs/HISABY-BHD-R-INTEGRATION.md) — الشاشة: `/bhd-r` و`/settings#bhd-r`.
+دليل الربط: [`docs/HISABY-BHD-R-INTEGRATION.md`](docs/HISABY-BHD-R-INTEGRATION.md) — الشاشة: `/bhd-r` و`/settings#bhd-r`.  
+نقطة الأحداث العامة: `https://hisaby.bhd-om.com/api/integrations/bhd-r/events` (منشور: `8bfe709`).
 
 ---
 
