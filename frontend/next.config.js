@@ -16,10 +16,9 @@ const nextConfig = {
         source: '/api/integrations/:path*',
         destination: `${backend}/api/integrations/:path*`,
       },
-      {
-        source: '/backend-api/:path*',
-        destination: `${backend}/api/:path*`,
-      },
+      // /backend-api is an App Router proxy so Origin/Set-Cookie stay on the
+      // frontend host. Vercel rewrites replace Origin with the API host and
+      // CSRF then rejects admin/login mutations.
     ];
   },
   async headers() {

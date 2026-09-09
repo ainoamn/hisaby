@@ -64,10 +64,22 @@ describe('csrfProtection', () => {
       originalUrl: '/api/admin/tenants/abc',
       headers: {
         origin: 'https://hisaby-api.onrender.com',
-        referer: 'https://hisaby.bhd-om.com/admin/users',
         'x-csrf-token': 'expected',
       },
       cookies: { bhd_access: 'jwt', bhd_csrf: 'expected' },
+    });
+    expect(error).toBeNull();
+  });
+
+  it('accepts a Vercel deployment Origin without Referer', async () => {
+    const error = await run({
+      method: 'POST',
+      originalUrl: '/api/auth/refresh',
+      headers: {
+        origin: 'https://hisaby-git-main-team.vercel.app',
+        'x-csrf-token': 'expected',
+      },
+      cookies: { bhd_refresh: 'jwt', bhd_csrf: 'expected' },
     });
     expect(error).toBeNull();
   });
@@ -77,8 +89,6 @@ describe('csrfProtection', () => {
       method: 'PATCH',
       originalUrl: '/api/admin/tenants/abc',
       headers: {
-        referer: 'https://hisaby.bhd-om.com/admin/tenants',
-        'sec-fetch-site': 'same-origin',
         'x-csrf-token': 'expected',
       },
       cookies: { bhd_access: 'jwt', bhd_csrf: 'expected' },

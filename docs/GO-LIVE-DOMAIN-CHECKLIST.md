@@ -197,7 +197,7 @@ Project `bhd-pro` → **Settings → Environment Variables** (Production):
 | العرض | السبب الأرجح | العلاج |
 |-------|--------------|--------|
 | Login 500 / CORS | `CORS_ORIGIN` ناقص | أضف نطاق الواجهة على Render |
-| حفظ `/admin/users` أو `/admin/tenants` يظهر CSRF origin | وكيل `/backend-api` يحذف Origin أو يستبدله بأصل الـ API، أو `CORS_ORIGIN` ما زال على hisaby.pro | الكود يقبل `https://hisaby.bhd-om.com` و`FRONTEND_URL` وReferer؛ أبقِ `CORS_ORIGIN` على نطاق حسابي الحي |
+| حفظ `/admin/users` أو `/admin/tenants` أو `/login` يظهر CSRF origin | وكيل Vercel يستبدل Origin بنطاق `*.vercel.app` أو الـ API | مسار App Router `/backend-api` + CSRF يقبل أصول الوكيل ويرفض الأصل الأجنبي فقط |
 | جاهزية حمراء | DB أو Redis أو S3 misconfigured | راجع `/health/ready` |
 | Cold start بطيء | Render free ينام | انتظر 30–60ث أو خطة مدفوعة |
 | دعوة مستخدم تفشل | لا إيميل / لا migration | Resend + `migrate deploy` |

@@ -75,7 +75,7 @@ function collectSetCookieHeaders(from: Headers): string[] {
  * Apply upstream Set-Cookie via Next cookies API (reliable on Vercel).
  * Decode once so Next does not double-encode Express values.
  */
-function applyUpstreamCookies(res: NextResponse, from: Headers) {
+export function applyUpstreamCookies(res: NextResponse, from: Headers) {
   const secureDefault =
     process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
 

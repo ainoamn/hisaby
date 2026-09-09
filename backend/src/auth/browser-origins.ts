@@ -72,30 +72,46 @@ function apiPublicOrigin(): string {
   );
 }
 
+function hostnameOf(origin: string): string | null {
+  try {
+    return new URL(origin).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 function isRewrittenProxyOrigin(origin: string): boolean {
-  return origin === apiPublicOrigin() || origin === DEFAULT_API_ORIGIN;
+  if (origin === apiPublicOrigin() || origin === DEFAULT_API_ORIGIN) return true;
+  const host = hostnameOf(origin);
+  if (!host) return false;
+  return (
+    host.endsWith('.onrender.com') ||
+    host.endsWith('.vercel.app') ||
+    isVercelPreviewOrigin(origin)
+  );
 }
 
 /**
- * Cookie-authenticated mutations from the Next rewrite (/backend-api)
- * often arrive with Origin missing or rewritten to the API host.
- * Trust the browser Origin when it is the frontend; otherwise require a
- * matching Referer (or same-origin Sec-Fetch-Site) so CSRF stays blocked.
+ * Browser POSTs to /backend-api are same-origin, but Vercel rewrites and
+ * Node fetch() replace Origin with the API or *.vercel.app host and often
+ * drop Referer. Reject only a present third-party Origin. Missing/proxy
+ * Origin falls through to the double-submit CSRF token.
  */
 export function isTrustedCsrfOrigin(headers: {
   origin?: string | string[];
   referer?: string | string[];
   'sec-fetch-site'?: string | string[];
+  'x-forwarded-origin'?: string | string[];
 }): boolean {
   const origin = firstHeader(headers.origin);
   if (origin && isAllowedCorsOrigin(origin)) return true;
+  if (origin && !isRewrittenProxyOrigin(origin)) return false;
+
+  const forwarded = firstHeader(headers['x-forwarded-origin']);
+  if (forwarded && isAllowedCorsOrigin(forwarded)) return true;
 
   const refererOrigin = originOf(firstHeader(headers.referer) || '');
-  const refererTrusted = !!(refererOrigin && isAllowedCorsOrigin(refererOrigin));
-  const fetchSite = (firstHeader(headers['sec-fetch-site']) || '').toLowerCase();
-  const sameSiteFetch =
-    fetchSite === 'same-origin' || fetchSite === 'same-site';
+  if (refererOrigin && isAllowedCorsOrigin(refererOrigin)) return true;
 
-  if (origin && !isRewrittenProxyOrigin(origin)) return false;
-  return refererTrusted || (!origin && sameSiteFetch);
+  return !origin || isRewrittenProxyOrigin(origin);
 }
