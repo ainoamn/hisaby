@@ -10,6 +10,7 @@ import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { IntegrationsBhdRService } from './integrations-bhd-r.service';
 import { BhdRInboundEventDto } from './dto/bhd-r-event.dto';
+import { BhdREventRequest } from '../auth/bhd-r-event.middleware';
 
 @ApiTags('BHD-R integration')
 @ApiSecurity('api-key')
@@ -28,6 +29,15 @@ export class BhdREventsController {
     @Req() req: Request,
     @Body() dto: BhdRInboundEventDto,
   ) {
+    const skipReq = req as BhdREventRequest;
+    if (skipReq.bhdRSkipEvent) {
+      return {
+        skipped: true,
+        reason: skipReq.bhdRSkipReason || 'ignored',
+        idempotencyKey: dto.idempotencyKey,
+        status: 'ignored',
+      };
+    }
     const token = this.readToken(req);
     return this.service.ingestEvent(token, dto, req.ip);
   }

@@ -43,6 +43,7 @@ type BhdRStatus = {
     } | null;
   };
   eventsPath: string;
+  eventsUrl?: string;
   propertiesUrl: string;
   propertiesApiKeysUrl: string;
   ssoUrl: string;
@@ -218,7 +219,7 @@ export function BhdRIntegrationSettings({ className }: { className?: string }) {
         </div>
         <p className="text-sm text-slate-400">{t("inboundHint")}</p>
         <p className="text-xs font-mono text-emerald-400/90 bg-slate-950/60 rounded px-2 py-1.5 overflow-x-auto">
-          POST {status.eventsPath}
+          POST {status.eventsUrl || `https://hisaby.bhd-om.com${status.eventsPath}`}
         </p>
         {status.inbound.configured ? (
           <p className="text-sm text-slate-300">

@@ -53,8 +53,10 @@ Hisaby يسحب:
 
 ## مسار الاستقبال النهائي (ثابت لـ BHD-R)
 
+الصق هذا الرابط في نموذج الربط على `/ar/owner/api-keys`:
+
 ```
-POST /api/integrations/bhd-r/events
+POST https://hisaby.bhd-om.com/api/integrations/bhd-r/events
 Authorization: Bearer qk_bhdr_<secret>
 Content-Type: application/json
 ```

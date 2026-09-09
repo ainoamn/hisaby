@@ -13,6 +13,10 @@ const nextConfig = {
     // Do not rewrite those paths — rewrites alone drop session cookies on Vercel.
     return [
       {
+        source: '/api/integrations/:path*',
+        destination: `${backend}/api/integrations/:path*`,
+      },
+      {
         source: '/backend-api/:path*',
         destination: `${backend}/api/:path*`,
       },

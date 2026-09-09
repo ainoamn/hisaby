@@ -25,6 +25,7 @@ import {
 const TOKEN_PREFIX = 'qk_bhdr_';
 const PROPERTIES_URL = 'https://r.bhd-om.com';
 const EVENTS_PATH = '/api/integrations/bhd-r/events';
+const PUBLIC_ORIGIN = (process.env.FRONTEND_URL || 'https://hisaby.bhd-om.com').replace(/\/+$/, '');
 
 type TaxConfig = {
   applyVat?: boolean;
@@ -57,6 +58,7 @@ export class IntegrationsBhdRService {
       titleEn: 'How to connect BHD R properties',
       propertiesUrl: PROPERTIES_URL,
       eventsPath: EVENTS_PATH,
+      eventsUrl: `${PUBLIC_ORIGIN}${EVENTS_PATH}`,
       sections: [
         {
           id: 'who-creates',
@@ -75,7 +77,7 @@ export class IntegrationsBhdRService {
             'من إعدادات الشركة → تكامل BHD R اضغط «إنشاء رمز تكامل وارد».',
             'انسخ الرمز مرة واحدة. لن يُعرض السر بعد إغلاق النافذة.',
             'في BHD-R الصق الرمز في إعدادات الربط (مرحلة B) واحفظ.',
-            'BHD-R يرسل الأحداث إلى POST /api/integrations/bhd-r/events مع Authorization: Bearer <الرمز>.',
+        'BHD-R يرسل الأحداث إلى POST https://hisaby.bhd-om.com/api/integrations/bhd-r/events مع Authorization: Bearer <الرمز>.',
           ],
         },
         {
@@ -684,6 +686,7 @@ export class IntegrationsBhdRService {
         lastSummary: company.bhdRLastSyncSummary,
       },
       eventsPath: EVENTS_PATH,
+      eventsUrl: `${PUBLIC_ORIGIN}${EVENTS_PATH}`,
       propertiesUrl: PROPERTIES_URL,
       propertiesApiKeysUrl: `${PROPERTIES_URL}/ar/owner/api-keys`,
       ssoUrl: PROPERTIES_URL,

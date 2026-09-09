@@ -10,6 +10,7 @@ import { PrismaService } from './prisma/prisma.service';
 import { assertProductionSecrets } from './common/crypto/secrets.crypto';
 import { initSentry } from './observability/sentry';
 import { csrfProtection } from './auth/csrf.middleware';
+import { bhdREventNormalize } from './auth/bhd-r-event.middleware';
 import { MODULE_KEYS, ModulePermissions } from './common/module-permissions';
 
 async function bootstrap() {
@@ -40,6 +41,7 @@ async function bootstrap() {
   );
   app.use(cookieParser());
   app.use(csrfProtection);
+  app.use(bhdREventNormalize);
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -77,6 +79,8 @@ async function bootstrap() {
       'X-API-Key',
       'X-Company-ID',
       'X-CSRF-Token',
+      'X-BHD-R-Event-Id',
+      'X-BHD-R-Topic',
     ],
   });
 

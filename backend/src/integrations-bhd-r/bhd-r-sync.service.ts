@@ -86,16 +86,41 @@ export class BhdRSyncService {
         aad: `bhd-r-read:${companyId}`,
       });
 
-      const [properties, parties, leases, invoices, payments, expenses, vendors] =
-        await Promise.all([
-          this.safeList<BhdRPropertyRow>('/v1/portfolio/properties', apiKey, summary),
-          this.safeList<BhdRPartyRow>('/v1/parties', apiKey, summary),
-          this.safeList<BhdRLeaseRow>('/v1/leasing/leases', apiKey, summary),
-          this.safeList<BhdRInvoiceRow>('/v1/finance/invoices', apiKey, summary),
-          this.safeList<BhdRPaymentRow>('/v1/finance/payments', apiKey, summary),
-          this.safeList<BhdRExpenseRow>('/v1/accounting/expenses', apiKey, summary),
-          this.safeList<BhdRVendorRow>('/v1/operations/vendors', apiKey, summary),
-        ]);
+      const snapshot = await this.api
+        .getJson<{
+          properties?: BhdRPropertyRow[];
+          parties?: BhdRPartyRow[];
+          leases?: BhdRLeaseRow[];
+          invoices?: BhdRInvoiceRow[];
+          payments?: BhdRPaymentRow[];
+          expenses?: BhdRExpenseRow[];
+        }>('/v1/integrations/hisaby/export', apiKey)
+        .catch((err) => {
+          this.logger.warn(
+            `BHD-R export unavailable, falling back to list endpoints: ${err instanceof Error ? err.message : err}`,
+          );
+          return null;
+        });
+
+      const [fallbackProperties, fallbackParties, fallbackLeases, fallbackInvoices, fallbackPayments, fallbackExpenses, vendors] =
+        snapshot
+          ? [[], [], [], [], [], [], await this.safeList<BhdRVendorRow>('/v1/operations/vendors', apiKey, summary)]
+          : await Promise.all([
+              this.safeList<BhdRPropertyRow>('/v1/portfolio/properties', apiKey, summary),
+              this.safeList<BhdRPartyRow>('/v1/parties', apiKey, summary),
+              this.safeList<BhdRLeaseRow>('/v1/leasing/leases', apiKey, summary),
+              this.safeList<BhdRInvoiceRow>('/v1/finance/invoices', apiKey, summary),
+              this.safeList<BhdRPaymentRow>('/v1/finance/payments', apiKey, summary),
+              this.safeList<BhdRExpenseRow>('/v1/accounting/expenses', apiKey, summary),
+              this.safeList<BhdRVendorRow>('/v1/operations/vendors', apiKey, summary),
+            ]);
+
+      const properties = snapshot?.properties ?? fallbackProperties;
+      const parties = snapshot?.parties ?? fallbackParties;
+      const leases = snapshot?.leases ?? fallbackLeases;
+      const invoices = snapshot?.invoices ?? fallbackInvoices;
+      const payments = snapshot?.payments ?? fallbackPayments;
+      const expenses = snapshot?.expenses ?? fallbackExpenses;
 
       const propertyById = new Map(properties.map((row) => [row.id, row]));
       const unitById = new Map<string, Record<string, unknown> & { id: string; propertyId?: string }>();

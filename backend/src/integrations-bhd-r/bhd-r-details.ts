@@ -51,24 +51,157 @@ export function pickPartyAddress(
     addresses?: Array<{
       primary?: boolean;
       address?: Record<string, unknown> | null;
+      city?: string;
+      street?: string;
+      governorate?: string;
+      wilayat?: string;
+      countryCode?: string;
     }>;
     address?: Record<string, unknown> | null;
   } | null,
 ): BhdRAddressDto | undefined {
   if (!party) return undefined;
+  const first = party.addresses?.find((row) => row.primary) || party.addresses?.[0];
   const nested =
-    party.addresses?.find((row) => row.primary)?.address ||
-    party.addresses?.[0]?.address ||
+    first?.address ||
+    (first && (first.city || first.street || first.governorate) ? first : null) ||
     party.address ||
     null;
   if (!nested) return undefined;
-  const line = formatBhdRAddress(nested);
+  const rec = nested as Record<string, unknown>;
+  const line = formatBhdRAddress(rec);
   return {
     line: line || undefined,
-    city: str(nested.city),
-    governorate: str(nested.governorate),
-    wilayat: str(nested.wilayat),
-    countryCode: str(nested.countryCode)?.slice(0, 2),
+    city: str(rec.city),
+    governorate: str(rec.governorate),
+    wilayat: str(rec.wilayat),
+    countryCode: str(rec.countryCode)?.slice(0, 2),
+  };
+}
+
+const WORKER_TYPE_MAP: Record<string, BhdRInboundEventDto['type'] | 'skip'> = {
+  'stay.payment.succeeded': 'stay.payment.succeeded',
+  'stay_booking.payment_confirmed': 'stay.payment.succeeded',
+  'lease.invoice.issued': 'lease.invoice.issued',
+  'invoice.issued': 'lease.invoice.issued',
+  'lease.payment.received': 'lease.payment.received',
+  'payment.recorded': 'lease.payment.received',
+  'receipt.issued': 'lease.payment.received',
+  'expense.paid': 'expense.paid',
+  'expense.approved': 'expense.approved',
+  'deposit.held': 'deposit.held',
+  'reservation.deposit_confirmed': 'deposit.held',
+  'deposit.released': 'deposit.released',
+  'payment.refunded': 'skip',
+  'cheque.created': 'skip',
+  'accounting.journal.posted': 'skip',
+  'accounting.journal-posted': 'skip',
+};
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function minorFrom(raw: Record<string, unknown>, payload: Record<string, unknown>): string | undefined {
+  const value =
+    raw.amountMinor ??
+    payload.amountMinor ??
+    payload.totalMinor ??
+    payload.paidMinor ??
+    payload.rentMinor;
+  if (value === undefined || value === null) return undefined;
+  const text = String(value).trim();
+  return /^-?\d+$/.test(text) ? text : undefined;
+}
+
+/** Flatten BHD-R worker push bodies into the Hisaby inbound event DTO. */
+export function normalizeBhdRInboundBody(raw: unknown): {
+  skip: boolean;
+  skipReason?: string;
+  body: Record<string, unknown>;
+} {
+  const input = asRecord(raw);
+  const payload = asRecord(input.payload);
+  const mapped = WORKER_TYPE_MAP[String(input.type || '').trim()] || 'skip';
+  const idempotencyKey = String(
+    input.idempotencyKey || input.eventId || payload.id || `bhd-r:evt:${Date.now()}`,
+  ).slice(0, 180);
+  const occurredOn = toIsoDateTime(
+    str(input.occurredOn) || str(payload.occurredOn) || str(payload.issuedOn) || str(payload.receivedAt),
+  );
+  if (mapped === 'skip' || idempotencyKey.length < 8) {
+    return {
+      skip: true,
+      skipReason: mapped === 'skip' ? `unsupported_type:${String(input.type || '')}` : 'bad_idempotency',
+      body: {
+        idempotencyKey: idempotencyKey.padEnd(8, '0').slice(0, 180),
+        type: 'stay.payment.succeeded',
+        occurredOn,
+        amountMinor: '1',
+        currency: 'OMR',
+      },
+    };
+  }
+  const amountMinor = minorFrom(input, payload);
+  if (!amountMinor || amountMinor === '0') {
+    return {
+      skip: true,
+      skipReason: 'missing_amount',
+      body: {
+        idempotencyKey,
+        type: mapped,
+        occurredOn,
+        amountMinor: '1',
+        currency: 'OMR',
+      },
+    };
+  }
+  const cp = asRecord(input.counterparty);
+  const counterparty = str(cp.name)
+    ? input.counterparty
+    : payload.guestName
+      ? { name: String(payload.guestName) }
+      : undefined;
+  const refs = asRecord(input.sourceRefs);
+  return {
+    skip: false,
+    body: {
+      idempotencyKey,
+      type: mapped,
+      occurredOn,
+      dueOn: input.dueOn || payload.dueOn
+        ? toIsoDateTime(str(input.dueOn) || str(payload.dueOn))
+        : undefined,
+      amountMinor,
+      currency: String(input.currency || payload.currency || 'OMR')
+        .trim()
+        .toUpperCase()
+        .slice(0, 3),
+      direction: input.direction || undefined,
+      accountLabel: input.accountLabel || undefined,
+      organizationExternalId:
+        input.organizationExternalId || input.organizationId || payload.organizationId,
+      organizationId: input.organizationId,
+      propertyId: input.propertyId || payload.propertyId,
+      unitId: input.unitId || payload.unitId,
+      source: str(input.source) || 'bhd-r',
+      counterparty,
+      property: input.property,
+      unit: input.unit,
+      memo: String(input.memo || payload.memo || payload.notes || payload.description || '').slice(
+        0,
+        500,
+      ) || undefined,
+      sourceRefs: {
+        bookingId: refs.bookingId || payload.bookingId,
+        invoiceId: refs.invoiceId || payload.invoiceId,
+        paymentId: refs.paymentId || payload.paymentId,
+        expenseId: refs.expenseId || payload.expenseId,
+        leaseId: refs.leaseId || payload.leaseId,
+      },
+    },
   };
 }
 

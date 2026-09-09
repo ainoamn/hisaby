@@ -4,6 +4,7 @@ import {
   mapExpensePull,
   mapInvoicePull,
   mapPaymentPull,
+  normalizeBhdRInboundBody,
   sanitizeEmail,
   toIsoDateTime,
 } from '../src/integrations-bhd-r/bhd-r-details';
@@ -110,5 +111,26 @@ describe('BHD-R detail mapping', () => {
     expect(dto.direction).toBe('inbound');
     expect(dto.sourceRefs?.paymentId).toBe('pay-1');
     expect(dto.sourceRefs?.invoiceId).toBe('inv-1');
+  });
+
+  it('flattens BHD-R worker push bodies onto the inbound contract', () => {
+    const { skip, body } = normalizeBhdRInboundBody({
+      type: 'invoice.issued',
+      idempotencyKey: 'bhd-r:outbox:evt-1',
+      payload: { amountMinor: '150000', currency: 'OMR', invoiceId: 'inv-1', propertyId: 'prop-1' },
+    });
+    expect(skip).toBe(false);
+    expect(body.type).toBe('lease.invoice.issued');
+    expect(body.amountMinor).toBe('150000');
+    expect((body.sourceRefs as { invoiceId?: string }).invoiceId).toBe('inv-1');
+  });
+
+  it('ignores informational worker topics so auto-push does not fail', () => {
+    const { skip, skipReason } = normalizeBhdRInboundBody({
+      type: 'accounting.journal.posted',
+      idempotencyKey: 'bhd-r:outbox:evt-2',
+    });
+    expect(skip).toBe(true);
+    expect(skipReason).toContain('unsupported_type');
   });
 });
