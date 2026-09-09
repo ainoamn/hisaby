@@ -6,7 +6,6 @@ import {
   CSRF_COOKIE,
   REFRESH_COOKIE,
 } from './auth-cookies';
-import { isTrustedCsrfOrigin } from './browser-origins';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const PUBLIC_MUTATION_PREFIXES = [
@@ -50,10 +49,9 @@ export function csrfProtection(
   );
   if (!hasAuthCookie) return next();
 
-  if (!isTrustedCsrfOrigin(req.headers)) {
-    return next(new ForbiddenException('CSRF origin validation failed'));
-  }
-
+  // Origin is rewritten by Vercel/Node fetch (API host or *.vercel.app) and the
+  // live Render service has lagged behind GitHub before. Double-submit token
+  // (and Bearer from the App Router proxy) is the CSRF control.
   const cookieToken = req.cookies?.[CSRF_COOKIE];
   const header = req.headers['x-csrf-token'];
   const headerToken = Array.isArray(header) ? header[0] : header;

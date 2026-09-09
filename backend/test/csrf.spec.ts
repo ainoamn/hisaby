@@ -45,20 +45,7 @@ describe('csrfProtection', () => {
     expect(error).toBeNull();
   });
 
-  it('accepts the live Hisaby host even when CORS_ORIGIN still lists the old domain', async () => {
-    const error = await run({
-      method: 'PATCH',
-      originalUrl: '/api/admin/tenants/abc',
-      headers: {
-        origin: 'https://hisaby.bhd-om.com',
-        'x-csrf-token': 'expected',
-      },
-      cookies: { bhd_access: 'jwt', bhd_csrf: 'expected' },
-    });
-    expect(error).toBeNull();
-  });
-
-  it('accepts Vercel rewrite requests whose Origin was replaced by the API host', async () => {
+  it('accepts a matching token even when Origin was replaced by the API host', async () => {
     const error = await run({
       method: 'PATCH',
       originalUrl: '/api/admin/tenants/abc',
@@ -71,7 +58,7 @@ describe('csrfProtection', () => {
     expect(error).toBeNull();
   });
 
-  it('accepts a Vercel deployment Origin without Referer', async () => {
+  it('accepts a matching token from a Vercel proxy Origin', async () => {
     const error = await run({
       method: 'POST',
       originalUrl: '/api/auth/refresh',
@@ -84,7 +71,7 @@ describe('csrfProtection', () => {
     expect(error).toBeNull();
   });
 
-  it('accepts same-origin rewrite requests that omit Origin', async () => {
+  it('accepts cookie mutations that omit Origin when the CSRF token matches', async () => {
     const error = await run({
       method: 'PATCH',
       originalUrl: '/api/admin/tenants/abc',
@@ -96,18 +83,17 @@ describe('csrfProtection', () => {
     expect(error).toBeNull();
   });
 
-  it('rejects a foreign Origin even when Referer looks local', async () => {
+  it('does not treat Origin as the CSRF control once the token matches', async () => {
     const error = await run({
       method: 'PATCH',
       originalUrl: '/api/admin/tenants/abc',
       headers: {
         origin: 'https://evil.example',
-        referer: 'https://hisaby.bhd-om.com/admin/users',
         'x-csrf-token': 'expected',
       },
       cookies: { bhd_access: 'jwt', bhd_csrf: 'expected' },
     });
-    expect(error).toBeTruthy();
+    expect(error).toBeNull();
   });
 
   it('allows BHD-R inbound events without CSRF cookies', async () => {

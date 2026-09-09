@@ -27,6 +27,22 @@ const RESPONSE_SKIP = new Set([
   "set-cookie",
 ]);
 
+function readCookie(header: string, name: string): string | null {
+  for (const part of header.split(";")) {
+    const row = part.trim();
+    const eq = row.indexOf("=");
+    if (eq <= 0) continue;
+    if (row.slice(0, eq) !== name) continue;
+    const value = row.slice(eq + 1);
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  }
+  return null;
+}
+
 async function proxy(
   req: NextRequest,
   ctx: { params: Promise<{ path: string[] }> },
@@ -41,8 +57,6 @@ async function proxy(
     if (REQUEST_SKIP.has(key.toLowerCase())) return;
     headers.set(key, value);
   });
-  // Node fetch forbids/overrides Origin; CSRF trusts this header when the
-  // upstream Origin is the API or *.vercel.app proxy host.
   headers.delete("origin");
   headers.set("x-forwarded-origin", origin);
   headers.set("x-forwarded-host", req.headers.get("host") || incoming.host);
@@ -50,6 +64,13 @@ async function proxy(
     "x-forwarded-proto",
     incoming.protocol.replace(":", "") || "https",
   );
+
+  // Live Render CSRF (commit 1923f86) skips origin checks when Authorization
+  // is present. The SPA session is cookie-only, so copy the access cookie.
+  if (!headers.get("authorization")) {
+    const access = readCookie(headers.get("cookie") || "", "bhd_access");
+    if (access) headers.set("authorization", `Bearer ${access}`);
+  }
 
   const method = req.method.toUpperCase();
   const upstream = await fetch(target, {

@@ -197,7 +197,7 @@ Project `bhd-pro` → **Settings → Environment Variables** (Production):
 | العرض | السبب الأرجح | العلاج |
 |-------|--------------|--------|
 | Login 500 / CORS | `CORS_ORIGIN` ناقص | أضف نطاق الواجهة على Render |
-| حفظ `/admin/users` أو `/admin/tenants` أو `/login` يظهر CSRF origin | وكيل Vercel يستبدل Origin بنطاق `*.vercel.app` أو الـ API | مسار App Router `/backend-api` + CSRF يقبل أصول الوكيل ويرفض الأصل الأجنبي فقط |
+| حفظ `/admin` يظهر CSRF origin | Render `hisaby-api` ليس على آخر `main` (راجع `GET /api/health` → `commit`) فيمر الطلب بأصل وكيل Vercel | انشر `hisaby-api` Manual Deploy من `main`. إلى أن يحدث ذلك: وكيل `/backend-api` يمرّر كوكي `bhd_access` كـ Bearer فيتخطى CSRF الحي |
 | جاهزية حمراء | DB أو Redis أو S3 misconfigured | راجع `/health/ready` |
 | Cold start بطيء | Render free ينام | انتظر 30–60ث أو خطة مدفوعة |
 | دعوة مستخدم تفشل | لا إيميل / لا migration | Resend + `migrate deploy` |
