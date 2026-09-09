@@ -221,8 +221,8 @@ npm run dev
 | `REQUIRE_2FA_ROLES` | أدوار تُلزم بـ 2FA (افتراضي `ADMIN,MANAGER`؛ `off` لتعطيل سياسة البيئة) |
 | `PAYMENT_SECRETS_KEY` | تشفير أسرار بوابات الدفع (AES-GCM) — إلزامي في الإنتاج |
 | `PLATFORM_ADMIN_EMAILS` | إيميلات مشغّل المنصة لإدارة بوابات الاشتراك |
-| `CORS_ORIGIN` | أصل الواجهة HTTPS في الإنتاج |
-| `FRONTEND_URL` | رابط الواجهة للتحويل بعد الدفع |
+| `CORS_ORIGIN` | أصل الواجهة HTTPS في الإنتاج (يُستخدم أيضاً مع CSRF) |
+| `FRONTEND_URL` | رابط الواجهة للتحويل بعد الدفع؛ CSRF يقبل هذا الأصل و`https://hisaby.bhd-om.com` حتى لو بقي `CORS_ORIGIN` على نطاق قديم |
 | `API_PUBLIC_URL` | رابط الـ API العام (webhooks / return URL) |
 | `STRIPE_*` / `THAWANI_*` / `PAYPAL_*` | بوابات دفع اشتراك المنصة |
 

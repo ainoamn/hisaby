@@ -10,6 +10,7 @@ import { PrismaService } from './prisma/prisma.service';
 import { assertProductionSecrets } from './common/crypto/secrets.crypto';
 import { initSentry } from './observability/sentry';
 import { csrfProtection } from './auth/csrf.middleware';
+import { isAllowedCorsOrigin } from './auth/browser-origins';
 import { bhdREventNormalize } from './auth/bhd-r-event.middleware';
 import { MODULE_KEYS, ModulePermissions } from './common/module-permissions';
 
@@ -53,18 +54,7 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin, callback) => {
-      const raw = process.env.CORS_ORIGIN || 'http://localhost:3000';
-      const allowed = raw.split(',').map((s) => s.trim()).filter(Boolean);
-      const allowVercelPreviews =
-        process.env.CORS_ALLOW_VERCEL_PREVIEWS === '1' ||
-        process.env.CORS_ALLOW_VERCEL_PREVIEWS === 'true';
-      if (
-        !origin ||
-        allowed.includes('*') ||
-        allowed.includes(origin) ||
-        (allowVercelPreviews &&
-          /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin))
-      ) {
+      if (!origin || isAllowedCorsOrigin(origin)) {
         callback(null, true);
         return;
       }

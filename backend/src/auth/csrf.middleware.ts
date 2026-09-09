@@ -6,6 +6,7 @@ import {
   CSRF_COOKIE,
   REFRESH_COOKIE,
 } from './auth-cookies';
+import { isTrustedCsrfOrigin } from './browser-origins';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const PUBLIC_MUTATION_PREFIXES = [
@@ -26,13 +27,6 @@ function constantTimeEqual(a: string, b: string): boolean {
   const left = Buffer.from(a);
   const right = Buffer.from(b);
   return left.length === right.length && timingSafeEqual(left, right);
-}
-
-function allowedOrigins(): string[] {
-  return (process.env.CORS_ORIGIN || 'http://localhost:3000')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
 }
 
 export function csrfProtection(
@@ -56,16 +50,7 @@ export function csrfProtection(
   );
   if (!hasAuthCookie) return next();
 
-  const origin = req.headers.origin;
-  const allowVercelPreviews =
-    process.env.CORS_ALLOW_VERCEL_PREVIEWS === '1' ||
-    process.env.CORS_ALLOW_VERCEL_PREVIEWS === 'true';
-  const originAllowed =
-    typeof origin === 'string' &&
-    (allowedOrigins().includes(origin) ||
-      (allowVercelPreviews &&
-        /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)));
-  if (!originAllowed) {
+  if (!isTrustedCsrfOrigin(req.headers)) {
     return next(new ForbiddenException('CSRF origin validation failed'));
   }
 

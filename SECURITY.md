@@ -37,6 +37,7 @@ The codebase is hardened for a controlled production launch. Deployment must sti
 - Swagger is disabled in production; auth and sensitive operations are rate-limited.
 - `REQUIRE_2FA_ROLES`, grace policy, hard lock, Sentry, Redis health/cache, S3 removal, Dependabot and Playwright smoke remain supported.
 - The SPA calls `/backend-api/*` so browser cookies remain same-site. A separate API domain requires HTTPS, `COOKIE_SAME_SITE=none`, and credentialed requests.
+- Cookie mutations still require a matching `X-CSRF-Token`. CSRF origin checks always allow `https://hisaby.bhd-om.com` plus `FRONTEND_URL` / `CORS_ORIGIN`. If the Vercel rewrite drops Origin or replaces it with the API host, Referer (or `Sec-Fetch-Site: same-origin`) is accepted; a foreign Origin is still rejected.
 - Tokens may be returned for non-browser clients; the SPA does not persist them in localStorage.
 - See [production hardening](./docs/PRODUCTION-HARDENING.md), [deployment](./docs/SECURITY-HARDENING-DEPLOYMENT-2026-08-11.md), and [threat model](./docs/THREAT-MODEL.md).
 

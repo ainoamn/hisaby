@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { adminCopy } from "@/lib/admin-copy";
@@ -46,6 +47,13 @@ type Tenant = {
 function fmt(d?: string | null, en?: boolean) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString(en ? "en-GB" : "ar");
+}
+
+function errMsg(err: unknown, fallback: string) {
+  const message = (err as { response?: { data?: { message?: string | string[] } } })
+    ?.response?.data?.message;
+  if (Array.isArray(message)) return message.join(", ");
+  return message || fallback;
 }
 
 function daysRemaining(planExpiry?: string | null) {
@@ -149,6 +157,9 @@ export default function AdminTenantsPage() {
       });
       await load(q);
       setSelected(null);
+      toast.success(en ? "Saved" : "تم الحفظ");
+    } catch (err: unknown) {
+      toast.error(errMsg(err, en ? "Save failed" : "تعذر الحفظ"));
     } finally {
       setSaving(false);
     }
@@ -475,11 +486,16 @@ export default function AdminTenantsPage() {
               <button
                 type="button"
                 onClick={async () => {
-                  await api.updateAdminTenant(selected.id, {
-                    isActive: !selected.isActive,
-                  });
-                  await load(q);
-                  setSelected(null);
+                  try {
+                    await api.updateAdminTenant(selected.id, {
+                      isActive: !selected.isActive,
+                    });
+                    await load(q);
+                    setSelected(null);
+                    toast.success(en ? "Updated" : "تم التحديث");
+                  } catch (err: unknown) {
+                    toast.error(errMsg(err, en ? "Update failed" : "تعذر التحديث"));
+                  }
                 }}
                 className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold"
               >
