@@ -13,6 +13,10 @@ describe('module-permissions', () => {
     expect(moduleForPath('/api/products')).toBe('inventory');
     expect(moduleForPath('/api/resto/kitchen')).toBe('kitchen');
     expect(moduleForPath('/api/payments/company-gateways')).toBe('settings');
+    expect(moduleForPath('/api/integrations/bhd-r')).toBe('settings');
+    expect(moduleForPath('/api/integrations/bhd-r/events')).toBe('settings');
+    expect(moduleForPath('/api/integrations/bhd-r/sync')).toBe('settings');
+    expect(moduleForPath('/api/integrations')).toBe('integrations');
   });
 
   it('gives ADMIN full edit access', () => {

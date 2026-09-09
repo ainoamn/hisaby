@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BookOpen,
   Brain,
+  Building2,
   CreditCard,
   Database,
   Loader2,
@@ -283,6 +285,24 @@ export default function IntegrationsPage() {
             "Accounting, POS, and Restaurants share one company — modules gated by plan."}
         </p>
       ) : null}
+
+      <GlassCard className="p-4">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-start gap-3">
+            <Building2 className="h-5 w-5 text-emerald-400 mt-0.5" />
+            <div>
+              <h2 className="font-semibold text-white">{t("bhdRTitle")}</h2>
+              <p className="text-sm text-slate-400 mt-1">{t("bhdRHint")}</p>
+            </div>
+          </div>
+          <Link
+            href="/bhd-r"
+            className="text-sm px-4 py-2 rounded-lg bg-slate-800 text-emerald-400 hover:bg-slate-700"
+          >
+            {t("bhdROpen")}
+          </Link>
+        </div>
+      </GlassCard>
 
       {readmeOpen && (
         <GlassCard className="p-6 space-y-5">

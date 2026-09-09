@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Loader2, X, KeyRound, Copy, Ban, Trash2, Check } from "lucide-react";
+import Link from "next/link";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { formatDate, cn, apiErrorMessage } from "@/lib/utils";
@@ -115,6 +116,11 @@ export default function ApiKeysPage() {
 
       <GlassCard className="p-4 text-sm text-slate-400 space-y-1">
         <p>{t("usageHint")}</p>
+        <p>
+          <Link href="/bhd-r" className="text-emerald-400 hover:underline">
+            {t("bhdRHint")}
+          </Link>
+        </p>
         <code className="block text-xs text-emerald-400/90 bg-slate-900/50 rounded px-2 py-1.5 mt-2 overflow-x-auto">
           curl -H &quot;X-API-Key: qk_live_…&quot; https://your-api/api/invoices
         </code>

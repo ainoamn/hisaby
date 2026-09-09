@@ -12,6 +12,7 @@ const PUBLIC_MUTATION_PREFIXES = [
   '/api/public/',
   '/api/payments/webhook',
   '/api/payments/webhooks',
+  '/api/integrations/bhd-r/events',
 ];
 const AUTH_EXEMPT_PATHS = new Set([
   '/api/auth/login',

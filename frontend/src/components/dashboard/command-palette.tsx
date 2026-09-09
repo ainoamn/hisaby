@@ -32,6 +32,7 @@ export function CommandPalette() {
     { id: "vat", title: "الفوترة الإلكترونية", description: "ZATCA / FTA", icon: Receipt, action: () => router.push("/vat") },
     { id: "ai", title: "تحليلات AI", description: "التحليلات الذكية", icon: Brain, action: () => router.push("/ai-analytics") },
     { id: "settings", title: "الإعدادات", description: "إعدادات الشركة", icon: Settings, action: () => router.push("/settings") },
+    { id: "bhd-r", title: "تكامل BHD R", description: "رمز تكامل وارد للعقارات", icon: Settings, action: () => router.push("/bhd-r") },
     { id: "subscription", title: "الاشتراك", description: "إدارة الاشتراك", icon: Crown, action: () => router.push("/subscription") },
     { id: "users", title: "المستخدمين", description: "إدارة الفريق", icon: Shield, action: () => router.push("/users") },
   ];

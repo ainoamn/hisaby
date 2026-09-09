@@ -29,6 +29,7 @@ import { TaxRatesModule } from './tax-rates/tax-rates.module';
 import { DeliveryNotesModule } from './delivery-notes/delivery-notes.module';
 import { StockCountsModule } from './stock-counts/stock-counts.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
+import { IntegrationsBhdRModule } from './integrations-bhd-r/integrations-bhd-r.module';
 import { EmployeeClaimsModule } from './employee-claims/employee-claims.module';
 import { DocumentTemplatesModule } from './document-templates/document-templates.module';
 import { CustomFieldsModule } from './custom-fields/custom-fields.module';
@@ -94,6 +95,7 @@ import { Past2faGraceInterceptor } from './common/interceptors/past-2fa-grace.in
     DeliveryNotesModule,
     StockCountsModule,
     ApiKeysModule,
+    IntegrationsBhdRModule,
     EmployeeClaimsModule,
     DocumentTemplatesModule,
     CustomFieldsModule,

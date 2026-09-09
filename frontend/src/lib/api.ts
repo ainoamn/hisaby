@@ -1251,6 +1251,30 @@ class ApiClient {
     return this.delete(`/api-keys/${id}`);
   }
 
+  getBhdRStatus() {
+    return this.get('/integrations/bhd-r');
+  }
+
+  getBhdRReadme() {
+    return this.get('/integrations/bhd-r/readme');
+  }
+
+  createBhdRInboundToken() {
+    return this.post('/integrations/bhd-r/inbound-token');
+  }
+
+  revokeBhdRInboundToken() {
+    return this.post('/integrations/bhd-r/inbound-token/revoke');
+  }
+
+  updateBhdRSettings(data: { organizationExternalId?: string; readApiKey?: string }) {
+    return this.patch('/integrations/bhd-r', data);
+  }
+
+  syncBhdR() {
+    return this.post('/integrations/bhd-r/sync');
+  }
+
   getEmployeeClaims() {
     return this.get('/employee-claims');
   }

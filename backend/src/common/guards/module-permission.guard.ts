@@ -44,6 +44,7 @@ const PATH_MODULE_MAP: { re: RegExp; module: ModuleKey }[] = [
   { re: /\/warehouses/, module: 'warehouses' },
   { re: /\/contacts(\/|$|\?)/, module: 'contacts' },
   { re: /\/vat(\/|$|\?)/, module: 'vat' },
+  { re: /\/integrations\/bhd-r/, module: 'settings' },
   { re: /\/integrations/, module: 'integrations' },
   { re: /\/ai-analytics/, module: 'aiAnalytics' },
   { re: /\/ai(\/|$|\?)/, module: 'aiAnalytics' },

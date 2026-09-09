@@ -35,4 +35,14 @@ describe('csrfProtection', () => {
     });
     expect(error).toBeNull();
   });
+
+  it('allows BHD-R inbound events without CSRF cookies', async () => {
+    const error = await run({
+      method: 'POST',
+      originalUrl: '/api/integrations/bhd-r/events',
+      headers: { authorization: 'Bearer qk_bhdr_test' },
+      cookies: {},
+    });
+    expect(error).toBeNull();
+  });
 });

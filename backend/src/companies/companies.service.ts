@@ -38,7 +38,14 @@ export class CompaniesService {
     [key: string]: unknown;
   }) {
     const tax = (company.ftaConfig as TaxConfig) || {};
-    const { securityConfig, ...rest } = company;
+    const {
+      securityConfig,
+      bhdRInboundTokenHash,
+      bhdRReadApiKeyEnc,
+      ...rest
+    } = company;
+    void bhdRInboundTokenHash;
+    void bhdRReadApiKeyEnc;
     return {
       ...rest,
       applyVat: tax.applyVat !== false,

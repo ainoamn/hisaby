@@ -66,6 +66,19 @@ model Company {
   restoWarehouseId String? @map("resto_warehouse_id")
   restoWarehouse   Warehouse? @relation("CompanyRestoWarehouse", fields: [restoWarehouseId], references: [id], onDelete: SetNull)
 
+  /// Inbound token Hisaby issues so BHD-R can push property events (hashed; shown once)
+  bhdRInboundTokenHash     String?   @unique @map("bhd_r_inbound_token_hash")
+  bhdRInboundTokenPrefix   String?   @map("bhd_r_inbound_token_prefix")
+  bhdRInboundCreatedAt     DateTime? @map("bhd_r_inbound_created_at")
+  bhdRInboundCreatedById   String?   @map("bhd_r_inbound_created_by_id")
+  bhdRInboundLastUsedAt    DateTime? @map("bhd_r_inbound_last_used_at")
+  /// Optional BHD-R read API key (encrypted) for later pull matching
+  bhdRReadApiKeyEnc        String?   @map("bhd_r_read_api_key_enc") @db.Text
+  bhdROrganizationExternalId String? @map("bhd_r_organization_external_id")
+  bhdRLastSyncAt           DateTime? @map("bhd_r_last_sync_at")
+  bhdRLastSyncError        String?   @map("bhd_r_last_sync_error") @db.Text
+  bhdRLastSyncSummary      Json?     @map("bhd_r_last_sync_summary")
+
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
@@ -94,6 +107,7 @@ model Company {
   deliveryNotes DeliveryNote[]
   stockCounts StockCount[]
   apiKeys CompanyApiKey[]
+  bhdRInboundEvents BhdRInboundEvent[]
   employeeClaims EmployeeClaim[]
   documentTemplates DocumentTemplate[]
   customFieldDefinitions CustomFieldDefinition[]
@@ -186,6 +200,7 @@ model User {
   restoOrdersOpened RestoOrder[] @relation("RestoOrderOpenedBy")
   restoOrdersTipAssignee RestoOrder[] @relation("RestoOrderTipAssignee")
   restoServerSections RestoServerSection[] @relation("RestoServerSectionUser")
+  bhdRInboundEvents BhdRInboundEvent[]
 
   /// Home warehouse for POS cashiers — auto-selected; managers may switch freely
   defaultWarehouseId String? @map("default_warehouse_id")
@@ -264,6 +279,28 @@ model CompanyApiKey {
   @@index([companyId])
   @@index([keyPrefix])
   @@map("company_api_keys")
+}
+
+/// Idempotent ingest of BHD-R property accounting events
+model BhdRInboundEvent {
+  id             String   @id @default(uuid())
+  companyId      String   @map("company_id")
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  idempotencyKey String   @map("idempotency_key")
+  type           String
+  payload        Json
+  status         String   @default("processing")
+  invoiceId      String?  @map("invoice_id")
+  paymentId      String?  @map("payment_id")
+  errorMessage   String?  @map("error_message") @db.Text
+
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, createdAt])
+  @@map("bhd_r_inbound_events")
 }
 
 // ==================== ACCOUNTING TABLES ====================

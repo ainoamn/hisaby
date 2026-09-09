@@ -478,6 +478,7 @@ export const DASHBOARD_SECTION_MODULE: Record<string, ModuleKey> = {
   "/period-locks": "settings",
   "/tax-rates": "settings",
   "/api-keys": "settings",
+  "/bhd-r": "settings",
   "/document-templates": "settings",
   "/custom-fields": "settings",
   "/exchange-rates": "settings",

@@ -47,6 +47,7 @@ import {
   Mail,
   Flag,
   X,
+  Hotel,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
@@ -105,6 +106,7 @@ const settingsItems = [
   { href: "/period-locks", icon: Lock, label: "periodLocks" },
   { href: "/tax-rates", icon: Percent, label: "taxRates" },
   { href: "/api-keys", icon: KeyRound, label: "apiKeys" },
+  { href: "/bhd-r", icon: Hotel, label: "bhdR" },
   { href: "/document-templates", icon: FileStack, label: "documentTemplates" },
   { href: "/custom-fields", icon: FormInput, label: "customFields" },
   { href: "/exchange-rates", icon: ArrowLeftRight, label: "exchangeRates" },
@@ -144,6 +146,7 @@ const DASHBOARD_MODULE_BY_HREF: Record<string, ModuleKey> = {
   "/period-locks": "settings",
   "/tax-rates": "settings",
   "/api-keys": "settings",
+  "/bhd-r": "settings",
   "/document-templates": "settings",
   "/custom-fields": "settings",
   "/exchange-rates": "settings",

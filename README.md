@@ -313,6 +313,12 @@ POST {API_PUBLIC_URL}/api/payments/webhooks/paypal
 | POST | `/payments/public/invoice/:id/checkout` | checkout دفع فاتورة |
 | GET | `/subscriptions/plans` | خطط الاشتراك (يتطلب JWT) |
 | GET | `/public/plans` | خطط نشطة للصفحة الرئيسية (عام) |
+| POST | `/integrations/bhd-r/inbound-token` | إنشاء رمز تكامل وارد لـ BHD R (السر مرة واحدة) |
+| PATCH | `/integrations/bhd-r` | حفظ مفتاح قراءة BHD R (يبدأ المزامنة التلقائية) |
+| POST | `/integrations/bhd-r/sync` | سحب فوري للعقارات والعناوين والفواتير والوارد/الصادر |
+| POST | `/integrations/bhd-r/events` | استقبال أحداث العقارات — `Authorization: Bearer qk_bhdr_…` (idempotent) |
+
+دليل الربط: [`docs/HISABY-BHD-R-INTEGRATION.md`](docs/HISABY-BHD-R-INTEGRATION.md) — الشاشة: `/bhd-r` و`/settings#bhd-r`.
 
 ---
 

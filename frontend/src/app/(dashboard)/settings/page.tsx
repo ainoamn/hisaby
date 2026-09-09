@@ -19,6 +19,7 @@ import { CompanyLogoUpload } from "@/components/company/company-logo-upload";
 import { PosLinkSettings } from "@/components/pos/pos-link-settings";
 import { RestoLinkSettings } from "@/components/resto/resto-link-settings";
 import { HisabyAppsLinkHub } from "@/components/shared/hisaby-apps-link-hub";
+import { BhdRIntegrationSettings } from "@/components/integrations/bhd-r-integration-settings";
 import {
   DOCUMENT_COLOR_PRESETS,
   normalizeDocumentColor,
@@ -460,6 +461,12 @@ export default function SettingsPage() {
       <GlassCard className="p-6">
         <RestoLinkSettings variant="accounting" />
       </GlassCard>
+
+      <div id="bhd-r">
+        <GlassCard className="p-6">
+          <BhdRIntegrationSettings />
+        </GlassCard>
+      </div>
 
       <GlassCard className="p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
