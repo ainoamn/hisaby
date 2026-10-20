@@ -1,4 +1,10 @@
 import { DEFAULT_IDENTITY_ISSUER } from "@/lib/bhd/issuer";
+import {
+  addAccountUrl,
+  clearProductMemory,
+  currentReturnPath,
+  productStartPath,
+} from "@/lib/identity/client";
 
 export type AuthProviderMark = "password" | "google" | "facebook" | "whatsapp";
 
@@ -94,53 +100,43 @@ export async function postIdentitySwitch(sub: string): Promise<IdentitySession |
       body: JSON.stringify({ sub }),
     });
     if (!response.ok) return null;
-    return (await response.json()) as IdentitySession;
+    try {
+      return (await response.json()) as IdentitySession;
+    } catch {
+      return { user: { id: sub } };
+    }
   } catch {
     return null;
   }
 }
 
-export type AccountSwitchResult =
-  | { kind: "handoff" }
-  | { kind: "stay"; session: IdentitySession | null }
-  | { kind: "reenter"; session: IdentitySession };
-
 /**
- * Switch on identity and return the JSON for the header.
- * A different sub re-enters the workspace once; the page is not reloaded first.
+ * Switch the active identity account, drop this product's old session,
+ * then rebind via start. Never /login?add=1.
  */
-export async function switchBhdAccount(
-  sub: string,
-  currentSub?: string,
-): Promise<AccountSwitchResult> {
+export async function switchBhdAccount(sub: string): Promise<void> {
+  const here = currentReturnPath();
   if (!isBhdSiteHost(window.location.hostname)) {
+    clearProductMemory();
     await releaseProductSession().catch(() => undefined);
     const url = new URL("https://hisaby.bhd-om.com/bhd/switch");
     url.searchParams.set("sub", sub);
-    url.searchParams.set("back", `${window.location.origin}${HISABY_WORKSPACE}`);
+    url.searchParams.set("back", `${window.location.origin}${productStartPath(here)}`);
     window.location.assign(url.toString());
-    return { kind: "handoff" };
+    return;
   }
   const session = await postIdentitySwitch(sub);
-  const nextSub = session?.user?.id || session?.user?.sub;
-  if (session?.user && nextSub && nextSub !== currentSub) {
-    return { kind: "reenter", session };
-  }
-  return { kind: "stay", session };
+  if (!session?.user?.id && !session?.user?.sub) return;
+  clearProductMemory();
+  await releaseProductSession().catch(() => undefined);
+  window.location.assign(productStartPath(here));
 }
 
-export function addBhdAccount(returnTo: string): void {
-  const next = safeProductPath(returnTo);
-  window.location.assign(
-    `/api/auth/bhd/start?add=1&returnTo=${encodeURIComponent(next)}`,
-  );
+export function addBhdAccount(): void {
+  window.location.assign(addAccountUrl());
 }
 
-export type SignOutResult =
-  | { kind: "all" }
-  | { kind: "reenter"; session: IdentitySession };
-
-export async function signOutThisBhdAccount(): Promise<SignOutResult> {
+export async function signOutThisBhdAccount(): Promise<void> {
   try {
     const response = await fetch(`${DEFAULT_IDENTITY_ISSUER}/api/auth/logout`, {
       method: "POST",
@@ -152,14 +148,17 @@ export async function signOutThisBhdAccount(): Promise<SignOutResult> {
     if (response.ok) {
       const session = (await response.json()) as IdentitySession;
       if (session.user?.id || session.user?.sub) {
-        return { kind: "reenter", session };
+        clearProductMemory();
+        await releaseProductSession().catch(() => undefined);
+        window.location.assign(productStartPath(currentReturnPath()));
+        return;
       }
     }
   } catch {
     /* Identity unreachable — end every product session. */
   }
+  clearProductMemory();
   window.location.assign("/api/auth/bhd/logout?all=1");
-  return { kind: "all" };
 }
 
 export function signOutAllBhdAccounts(): void {

@@ -328,10 +328,14 @@ body {
   font-size: 22px;
   font-weight: 500;
 }
-.bhd-switcher-face .bhd-switcher-providers {
-  position: absolute;
-  inset-inline-end: -2px;
-  bottom: -2px;
+.bhd-switcher-who-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.bhd-switcher-who-meta small {
+  min-width: 0;
 }
 .bhd-switcher-who {
   min-width: 0;

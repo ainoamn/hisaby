@@ -4,14 +4,11 @@ import { useEffect, useState } from "react";
 import { BhdAppSwitcher, type BhdSwitcherUser } from "@/components/bhd/BhdAppSwitcher";
 import {
   addBhdAccount,
-  HISABY_WORKSPACE,
-  releaseProductSession,
   signOutAllBhdAccounts,
   signOutThisBhdAccount,
   switchBhdAccount,
   type BhdRosterAccount,
   type IdentityAccount,
-  type IdentitySession,
 } from "@/lib/bhd/accounts";
 import { DEFAULT_IDENTITY_ISSUER } from "@/lib/bhd/issuer";
 import { useLocaleStore } from "@/store/locale";
@@ -113,46 +110,15 @@ export function BhdSessionMenu({
     hasPassword: identityUser?.hasPassword || current?.hasPassword,
   };
 
-  const here = () =>
-    typeof window === "undefined"
-      ? HISABY_WORKSPACE
-      : `${window.location.pathname}${window.location.search}`;
-
-  function paintNext(): Promise<void> {
-    return new Promise((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-    });
-  }
-
-  function applySession(session: IdentitySession) {
-    if (session.user) setIdentityUser(toSwitcherUser(session.user));
-    if (Array.isArray(session.accounts)) setAccounts(session.accounts.map(toSwitcherUser));
-  }
-
   return (
     <BhdAppSwitcher
       user={switcherUser}
       accounts={accounts}
       platformAdmin={platformAdmin}
       locale={locale === "en" ? "en" : "ar"}
-      onAddAccount={() => addBhdAccount(here())}
-      onSwitchAccount={async (sub) => {
-        const result = await switchBhdAccount(sub, switcherUser.id);
-        if (result.kind === "handoff") return;
-        if (result.session) applySession(result.session);
-        if (result.kind !== "reenter") return;
-        await paintNext();
-        await releaseProductSession();
-        window.location.assign(HISABY_WORKSPACE);
-      }}
-      onSignOut={async () => {
-        const result = await signOutThisBhdAccount();
-        if (result.kind !== "reenter") return;
-        applySession(result.session);
-        await paintNext();
-        await releaseProductSession();
-        window.location.assign(HISABY_WORKSPACE);
-      }}
+      onAddAccount={() => addBhdAccount()}
+      onSwitchAccount={(sub) => void switchBhdAccount(sub)}
+      onSignOut={() => void signOutThisBhdAccount()}
       onSignOutAll={() => signOutAllBhdAccounts()}
     />
   );

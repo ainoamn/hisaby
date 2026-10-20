@@ -3,6 +3,7 @@ import "./globals.css";
 import "./light-theme.css";
 import { Providers } from "@/components/providers";
 import { ClientErrorBeacon } from "@/components/system/client-error-beacon";
+import { BhdSilentSso } from "@/components/bhd/BhdSilentSso";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -51,6 +52,7 @@ export default function RootLayout({
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body className="font-sans antialiased">
         <Providers>
+          <BhdSilentSso />
           <ClientErrorBeacon />
           {children}
         </Providers>
