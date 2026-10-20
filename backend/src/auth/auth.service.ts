@@ -28,6 +28,12 @@ import {
 import { assertPublicRegistrationAllowed } from './registration-policy';
 import { EmailNotifyService } from '../notifications/email-notify.service';
 import { randomBytes } from 'crypto';
+import {
+  normalizeRosterAccount,
+  SESSION_MAX_AGE_MS,
+  SESSION_JWT_EXPIRES_IN,
+  type ProductRosterAccount,
+} from './auth-cookies';
 import { resolveCountryPack } from '../common/country-packs';
 import { ensureBhdSubColumn } from '../prisma/ensure-bhd-sub';
 
@@ -348,7 +354,7 @@ export class AuthService {
       data: {
         userId: user.id,
         token: hashToken(tokens.refreshToken),
-        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + SESSION_MAX_AGE_MS),
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
       },
@@ -831,7 +837,7 @@ export class AuthService {
           data: {
             userId: user.id,
             token: hashToken(tokens.refreshToken),
-            expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+            expiresAt: new Date(Date.now() + SESSION_MAX_AGE_MS),
             ipAddress: session.ipAddress,
             userAgent: session.userAgent,
           },
@@ -842,6 +848,32 @@ export class AuthService {
     } catch (err) {
       if (err instanceof UnauthorizedException) throw err;
       throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
+  /** Keep the signed-in BHD account on the product roster before adding another. */
+  async rosterAccountFromAccessToken(
+    token: string | undefined,
+  ): Promise<ProductRosterAccount | null> {
+    if (!token) return null;
+    try {
+      const payload = this.jwtService.verify<TokenPayload>(token, {
+        secret: this.config.get<string>('jwt.secret'),
+      });
+      if (!payload?.sub) return null;
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { bhdSub: true, email: true, name: true, avatar: true },
+      });
+      if (!user?.bhdSub || !user.email) return null;
+      return normalizeRosterAccount({
+        sub: user.bhdSub,
+        email: user.email,
+        name: user.name,
+        picture: user.avatar,
+      });
+    } catch {
+      return null;
     }
   }
 
@@ -1192,15 +1224,11 @@ export class AuthService {
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: this.config.get<string>('jwt.secret'),
-        expiresIn: this.config.get<string>(
-          'jwt.expiration',
-        ) as JwtSignOptions['expiresIn'],
+        expiresIn: SESSION_JWT_EXPIRES_IN as JwtSignOptions['expiresIn'],
       }),
       this.jwtService.signAsync(payload, {
         secret: this.config.get<string>('jwt.refreshSecret'),
-        expiresIn: this.config.get<string>(
-          'jwt.refreshExpiration',
-        ) as JwtSignOptions['expiresIn'],
+        expiresIn: SESSION_JWT_EXPIRES_IN as JwtSignOptions['expiresIn'],
       }),
     ]);
 

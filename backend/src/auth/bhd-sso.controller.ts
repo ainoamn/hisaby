@@ -15,7 +15,17 @@ import {
   BHD_OAUTH_STATE_COOKIE,
   BhdSsoService,
 } from './bhd-sso.service';
-import { clearAuthCookies, setAuthCookies } from './auth-cookies';
+import {
+  ACCESS_COOKIE,
+  clearAuthCookies,
+  clearRosterCookie,
+  normalizeRosterAccount,
+  readRosterCookie,
+  ROSTER_COOKIE,
+  setAuthCookies,
+  setRosterCookie,
+  upsertRoster,
+} from './auth-cookies';
 import { AuthService } from './auth.service';
 
 @ApiTags('Auth / BHD Identity')
@@ -43,8 +53,9 @@ export class BhdSsoController {
   @Get('bhd/start')
   @SkipThrottle()
   @ApiOperation({ summary: 'Begin BHD Identity SSO (302 → id.bhd-om.com)' })
-  start(
+  async start(
     @Query('returnTo') returnTo: string | undefined,
+    @Query('add') add: string | undefined,
     @Req() req: Request,
     @Res() res: Response,
   ) {
@@ -53,6 +64,13 @@ export class BhdSsoController {
       returnTo,
       origin,
     );
+    const current = await this.authService.rosterAccountFromAccessToken(
+      req.cookies?.[ACCESS_COOKIE] as string | undefined,
+    );
+    if (current) {
+      const prev = readRosterCookie(req.cookies?.[ROSTER_COOKIE] as string | undefined);
+      setRosterCookie(res, upsertRoster(prev, current));
+    }
     const isProd = process.env.NODE_ENV === 'production';
     res.cookie(BHD_OAUTH_STATE_COOKIE, stateCookieValue, {
       httpOnly: true,
@@ -61,7 +79,9 @@ export class BhdSsoController {
       path: '/',
       maxAge: 5 * 60 * 1000,
     });
-    return res.redirect(302, authorizeUrl);
+    const dest =
+      add === '1' ? this.bhdSso.addAccountLoginUrl(authorizeUrl) : authorizeUrl;
+    return res.redirect(302, dest);
   }
 
   @Get('bhd/callback')
@@ -101,7 +121,7 @@ export class BhdSsoController {
     }
 
     try {
-      const { tokens, returnTo } = await this.bhdSso.exchangeAndLogin(
+      const { tokens, returnTo, identity } = await this.bhdSso.exchangeAndLogin(
         code,
         state,
         saved,
@@ -111,6 +131,11 @@ export class BhdSsoController {
         },
       );
       setAuthCookies(res, tokens);
+      const account = normalizeRosterAccount(identity);
+      if (account) {
+        const prev = readRosterCookie(req.cookies?.[ROSTER_COOKIE] as string | undefined);
+        setRosterCookie(res, upsertRoster(prev, account));
+      }
       let dest = returnTo.startsWith('/') ? returnTo : '/dashboard';
       if (dest === '/') dest = '/dashboard';
       return res.redirect(302, `${origin}${dest}`);
@@ -226,10 +251,27 @@ export class BhdSsoController {
     return '';
   }
 
+  @Get('bhd/accounts')
+  @SkipThrottle()
+  @ApiOperation({ summary: 'Read product account roster (no Set-Cookie)' })
+  accounts(@Req() req: Request) {
+    return {
+      accounts: readRosterCookie(req.cookies?.[ROSTER_COOKIE] as string | undefined),
+    };
+  }
+
   @Get('bhd/logout')
   @SkipThrottle()
-  @ApiOperation({ summary: 'Clear Hisaby session then BHD end-session' })
-  async logout(@Req() req: Request, @Res() res: Response) {
+  @ApiOperation({
+    summary:
+      'Clear Hisaby session. all=1 ends every identity account; sub= switches to the next via silent start',
+  })
+  async logout(
+    @Query('all') all: string | undefined,
+    @Query('sub') sub: string | undefined,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
     const user = (req as Request & { user?: { sub?: string } }).user;
     if (user?.sub) {
       try {
@@ -241,7 +283,21 @@ export class BhdSsoController {
     clearAuthCookies(res);
     res.clearCookie(BHD_OAUTH_STATE_COOKIE, { path: '/' });
     const origin = this.requestOrigin(req);
-    return res.redirect(302, this.bhdSso.endSessionUrl(`${origin}/`));
+    const targetSub = (sub || '').trim();
+    const signOutAll = all === '1' || !targetSub;
+    if (signOutAll) {
+      clearRosterCookie(res);
+      return res.redirect(302, this.bhdSso.endSessionUrl(`${origin}/`, true));
+    }
+    const roster = readRosterCookie(req.cookies?.[ROSTER_COOKIE] as string | undefined);
+    setRosterCookie(
+      res,
+      roster.filter((item) => item.sub !== targetSub),
+    );
+    return res.redirect(
+      302,
+      `${origin}/api/auth/bhd/start?returnTo=${encodeURIComponent('/dashboard')}`,
+    );
   }
 
   @Get('bhd/status')

@@ -43,6 +43,7 @@ import { PlanUpgradeGate } from "@/components/billing/plan-upgrade-gate";
 import { ShellAlertsBell } from "@/components/shared/shell-alerts-bell";
 import { ShellThemeToggle } from "@/components/shared/shell-theme-toggle";
 import { MobileAppSwitcher } from "@/components/shared/mobile-app-switcher";
+import { BhdSessionMenu } from "@/components/bhd/BhdSessionMenu";
 
 export function RestoShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -383,6 +384,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
               <LogOut className="w-4 h-4" />
             </button>
             </div>
+            {user ? <BhdSessionMenu user={user} /> : null}
           </div>
         </div>
 

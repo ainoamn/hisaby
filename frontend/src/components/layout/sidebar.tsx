@@ -196,7 +196,7 @@ export function Sidebar() {
   const handleLogout = async () => {
     setSidebarOpen(false);
     logout();
-    window.location.assign("/api/auth/bhd/logout");
+    window.location.assign("/api/auth/bhd/logout?all=1");
   };
 
   const isModuleOpen = (code: string, legacyFallback?: boolean) => {

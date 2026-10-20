@@ -13,13 +13,165 @@ import {
   type CSSProperties,
 } from "react";
 
+export type AuthProviderMark = "password" | "google" | "facebook" | "whatsapp";
+
 export type BhdSwitcherUser = {
+  id?: string;
   name: string;
   email: string;
+  username?: string | null;
+  phone?: string | null;
   picture: string | null;
+  providers?: AuthProviderMark[];
+  googleLinked?: boolean;
+  facebookLinked?: boolean;
+  hasPassword?: boolean;
 };
 
 type Panel = "apps" | "account" | null;
+
+const COPY = {
+  ar: {
+    appsAria: "تطبيقات BHD",
+    accountAria: "الحساب",
+    appsTitle: "تطبيقات BHD",
+    account: "الحساب",
+    admin: "الإدارة",
+    signOut: "خروج من هذا الحساب",
+    signOutAll: "خروج من كل الحسابات",
+    addAccount: "إضافة حساب آخر",
+    switchTo: "تبديل إلى",
+    manage: "إدارة الحساب",
+    providerPassword: "تسجيل عادي",
+    providerGoogle: "جوجل",
+    providerFacebook: "فيسبوك",
+    providerWhatsapp: "واتساب",
+  },
+  en: {
+    appsAria: "BHD apps",
+    accountAria: "Account",
+    appsTitle: "BHD apps",
+    account: "Account",
+    admin: "Admin",
+    signOut: "Sign out of this account",
+    signOutAll: "Sign out of all accounts",
+    addAccount: "Add another account",
+    switchTo: "Switch to",
+    manage: "Manage account",
+    providerPassword: "Password",
+    providerGoogle: "Google",
+    providerFacebook: "Facebook",
+    providerWhatsapp: "WhatsApp",
+  },
+} as const;
+
+const PROVIDER_ORDER = ["password", "google", "facebook", "whatsapp"] as const;
+
+function accountProviders(user: BhdSwitcherUser): AuthProviderMark[] {
+  const found = new Set<AuthProviderMark>(user.providers || []);
+  if (user.googleLinked) found.add("google");
+  if (user.facebookLinked) found.add("facebook");
+  if (user.hasPassword) found.add("password");
+  const picture = user.picture || "";
+  if (picture.includes("googleusercontent.com")) found.add("google");
+  if (picture.includes("fbcdn.net") || picture.includes("facebook.com")) found.add("facebook");
+  return PROVIDER_ORDER.filter((item) => found.has(item));
+}
+
+function accountHandle(user: BhdSwitcherUser) {
+  return user.email || user.username || user.phone || user.name;
+}
+
+function accountMeta(user: BhdSwitcherUser) {
+  return [user.username, user.phone].filter(
+    (item, index, list) => item && list.indexOf(item) === index && item !== user.email,
+  );
+}
+
+type SwitcherCopy = (typeof COPY)["ar"] | (typeof COPY)["en"];
+
+function ProviderMarks({
+  providers,
+  t,
+}: {
+  providers: AuthProviderMark[];
+  t: SwitcherCopy;
+}) {
+  const labels: Record<AuthProviderMark, { mark: string; label: string }> = {
+    password: { mark: "●", label: t.providerPassword },
+    google: { mark: "G", label: t.providerGoogle },
+    facebook: { mark: "f", label: t.providerFacebook },
+    whatsapp: { mark: "WA", label: t.providerWhatsapp },
+  };
+  if (!providers.length) return null;
+  return (
+    <span className="bhd-switcher-providers">
+      {providers.map((id) => (
+        <abbr
+          key={id}
+          className={`bhd-switcher-provider is-${id}`}
+          title={labels[id].label}
+          aria-label={labels[id].label}
+        >
+          {labels[id].mark}
+        </abbr>
+      ))}
+    </span>
+  );
+}
+
+function Face({
+  user,
+  t,
+  large = false,
+}: {
+  user: BhdSwitcherUser;
+  t: SwitcherCopy;
+  large?: boolean;
+}) {
+  const [broken, setBroken] = useState(false);
+  const show = Boolean(user.picture) && !broken;
+  const initial = (user.name || user.email || "B").trim().slice(0, 1).toUpperCase();
+  return (
+    <span className={large ? "bhd-switcher-face is-large" : "bhd-switcher-face"}>
+      {show ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={user.picture || undefined}
+          alt=""
+          width={large ? 56 : 40}
+          height={large ? 56 : 40}
+          referrerPolicy="no-referrer"
+          onError={() => setBroken(true)}
+        />
+      ) : (
+        <span aria-hidden="true">{initial}</span>
+      )}
+      <ProviderMarks providers={accountProviders(user).slice(0, 1)} t={t} />
+    </span>
+  );
+}
+
+function AccountRow({
+  user,
+  t,
+  large = false,
+}: {
+  user: BhdSwitcherUser;
+  t: SwitcherCopy;
+  large?: boolean;
+}) {
+  const meta = accountMeta(user);
+  return (
+    <span className="bhd-switcher-person">
+      <Face user={user} t={t} large={large} />
+      <span className="bhd-switcher-who">
+        <strong dir="ltr">{accountHandle(user)}</strong>
+        {meta.length ? <small dir="ltr">{meta.join(" · ")}</small> : null}
+      </span>
+    </span>
+  );
+}
 
 function stripSlash(value: string) {
   return value.replace(/\/$/, "");
@@ -65,9 +217,9 @@ function openApp(app: BhdApp, pageOrigin: string) {
   }
 }
 
-function clampCardStyle(anchor: DOMRect): CSSProperties {
+function clampCardStyle(anchor: DOMRect, widthPx: number, maxHeightPx: number): CSSProperties {
   const margin = 12;
-  const width = Math.min(320, window.innerWidth - margin * 2);
+  const width = Math.min(widthPx, window.innerWidth - margin * 2);
   let left = anchor.left;
   // Keep panel inside the viewport (RTL header puts switcher on the left edge)
   if (left + width > window.innerWidth - margin) {
@@ -81,19 +233,29 @@ function clampCardStyle(anchor: DOMRect): CSSProperties {
     left,
     right: "auto",
     width,
-    maxHeight: Math.min(360, window.innerHeight - top - margin),
+    maxHeight: Math.min(maxHeightPx, window.innerHeight - top - margin),
     zIndex: 200,
   };
 }
 
 export function BhdAppSwitcher({
   user,
+  accounts = [],
   onSignOut,
+  onSignOutAll,
+  onSwitchAccount,
+  onAddAccount,
   platformAdmin = false,
+  locale = "ar",
 }: {
   user: BhdSwitcherUser;
+  accounts?: BhdSwitcherUser[];
   onSignOut: () => void | Promise<void>;
+  onSignOutAll?: () => void | Promise<void>;
+  onSwitchAccount?: (sub: string) => void | Promise<void>;
+  onAddAccount?: () => void;
   platformAdmin?: boolean;
+  locale?: "ar" | "en";
 }) {
   const [panel, setPanel] = useState<Panel>(null);
   const [origin, setOrigin] = useState("");
@@ -102,6 +264,7 @@ export function BhdAppSwitcher({
   const rootRef = useRef<HTMLDivElement>(null);
   const appsId = useId();
   const accountId = useId();
+  const t = COPY[locale];
 
   const picture =
     user.picture && !pictureFailed ? user.picture.trim() || null : null;
@@ -119,8 +282,15 @@ export function BhdAppSwitcher({
 
   const placeCard = useCallback(() => {
     if (!rootRef.current) return;
-    setCardStyle(clampCardStyle(rootRef.current.getBoundingClientRect()));
-  }, []);
+    const account = panel === "account";
+    setCardStyle(
+      clampCardStyle(
+        rootRef.current.getBoundingClientRect(),
+        account ? 360 : 320,
+        account ? 480 : 360,
+      ),
+    );
+  }, [panel]);
 
   useLayoutEffect(() => {
     if (!panel) return;
@@ -167,7 +337,7 @@ export function BhdAppSwitcher({
       <button
         type="button"
         className="bhd-switcher-grid"
-        aria-label="تطبيقات BHD"
+        aria-label={t.appsAria}
         aria-haspopup="dialog"
         aria-expanded={panel === "apps"}
         aria-controls={panel === "apps" ? appsId : undefined}
@@ -183,7 +353,7 @@ export function BhdAppSwitcher({
       <button
         type="button"
         className="bhd-switcher-avatar"
-        aria-label="الحساب"
+        aria-label={t.accountAria}
         aria-haspopup="dialog"
         aria-expanded={panel === "account"}
         aria-controls={panel === "account" ? accountId : undefined}
@@ -211,11 +381,11 @@ export function BhdAppSwitcher({
           className="bhd-switcher-card"
           id={appsId}
           role="dialog"
-          aria-label="تطبيقات BHD"
+          aria-label={t.appsAria}
           style={cardStyle}
         >
           <div className="bhd-switcher-card-head">
-            <p>تطبيقات BHD</p>
+            <p>{t.appsTitle}</p>
           </div>
           <div className="bhd-switcher-grid-apps">
             {BHD_APPS.map((app) => {
@@ -256,46 +426,79 @@ export function BhdAppSwitcher({
           className="bhd-switcher-card bhd-switcher-account"
           id={accountId}
           role="dialog"
-          aria-label="الحساب"
+          aria-label={t.accountAria}
           style={cardStyle}
         >
-          <div className="bhd-switcher-account-row">
-            {picture ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={picture}
-                alt=""
-                width={44}
-                height={44}
-                referrerPolicy="no-referrer"
-                onError={() => setPictureFailed(true)}
-              />
-            ) : (
-              <span className="bhd-switcher-account-initial">{initial}</span>
-            )}
-            <div>
-              <strong>{user.name}</strong>
-              <small>{user.email}</small>
-            </div>
-          </div>
-          <a
-            className="bhd-switcher-account-link"
-            href={accountPageUrl(origin)}
-          >
-            الحساب
-          </a>
-          {platformAdmin ? (
-            <a className="bhd-switcher-account-link" href="/admin">
-              الإدارة
+          <div className="bhd-switcher-account-now">
+            <AccountRow user={user} t={t} large />
+            <a className="bhd-switcher-manage" href={accountPageUrl(origin)}>
+              {t.manage}
             </a>
-          ) : null}
-          <button
-            type="button"
-            className="bhd-switcher-signout"
-            onClick={() => void onSignOut()}
-          >
-            خروج
-          </button>
+            {platformAdmin ? (
+              <a className="bhd-switcher-manage" href="/admin">
+                {t.admin}
+              </a>
+            ) : null}
+          </div>
+          <div className="bhd-switcher-account-list">
+            {accounts
+              .filter((item) => {
+                if (user.id && item.id && item.id === user.id) return false;
+                if (
+                  user.email &&
+                  item.email &&
+                  item.email.toLowerCase() === user.email.toLowerCase()
+                ) {
+                  return false;
+                }
+                return Boolean(item.id);
+              })
+              .map((item) => (
+                <button
+                  key={item.id || item.email || item.username || item.phone}
+                  type="button"
+                  className="bhd-switcher-account-choice"
+                  aria-label={`${t.switchTo} ${accountHandle(item)}`}
+                  onClick={() => item.id && void onSwitchAccount?.(item.id)}
+                >
+                  <AccountRow user={item} t={t} />
+                </button>
+              ))}
+            {onAddAccount ? (
+              <button
+                type="button"
+                className="bhd-switcher-account-choice"
+                onClick={onAddAccount}
+              >
+                <span className="bhd-switcher-person">
+                  <span className="bhd-switcher-face is-action" aria-hidden="true">
+                    <span>+</span>
+                  </span>
+                  <span className="bhd-switcher-who">
+                    <strong>{t.addAccount}</strong>
+                  </span>
+                </span>
+              </button>
+            ) : null}
+          </div>
+          <div className="bhd-switcher-account-foot">
+            <button
+              type="button"
+              className="bhd-switcher-account-choice"
+              onClick={() => void onSignOut()}
+            >
+              {t.signOut}
+            </button>
+            {onSignOutAll ? (
+              <button
+                type="button"
+                className="bhd-switcher-account-choice"
+                onClick={() => void onSignOutAll()}
+              >
+                {t.signOutAll}
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </div>

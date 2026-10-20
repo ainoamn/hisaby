@@ -197,7 +197,18 @@ export class BhdSsoService {
     stateParam: string,
     saved: OAuthState,
     meta: { ipAddress?: string; userAgent?: string },
-  ): Promise<{ tokens: { accessToken: string; refreshToken: string }; returnTo: string }> {
+  ): Promise<{
+    tokens: { accessToken: string; refreshToken: string };
+    returnTo: string;
+    identity: {
+      sub: string;
+      email: string;
+      name: string;
+      picture: string | null;
+      username: string | null;
+      phone: string | null;
+    };
+  }> {
     if (!code || !stateParam || saved.state !== stateParam) {
       throw new BadRequestException({
         statusCode: 400,
@@ -281,16 +292,35 @@ export class BhdSsoService {
         refreshToken: session.refreshToken,
       },
       returnTo: saved.returnTo || '/dashboard',
+      identity: {
+        sub: claims.sub,
+        email: claims.email,
+        name: (claims.name || claims.email || '').trim() || claims.email,
+        picture: claims.picture || null,
+        username: claims.preferred_username || null,
+        phone: claims.phone_number || null,
+      },
     };
   }
 
-  endSessionUrl(postLogoutRedirect?: string): string {
+  /** Identity login that adds a second account, then continues this product's authorize URL. */
+  addAccountLoginUrl(authorizeUrl: string): string {
+    const authorize = new URL(authorizeUrl);
+    const next = `${authorize.pathname}${authorize.search}`;
+    const login = new URL(`${this.issuer()}/login`);
+    login.searchParams.set('add', '1');
+    login.searchParams.set('next', next);
+    return login.toString();
+  }
+
+  endSessionUrl(postLogoutRedirect?: string, all = false): string {
     const url = new URL(`${this.issuer()}/oauth/end-session`);
     url.searchParams.set('client_id', this.clientId());
     url.searchParams.set(
       'post_logout_redirect_uri',
       postLogoutRedirect || `${this.frontendOrigin()}/`,
     );
+    if (all) url.searchParams.set('all', '1');
     return url.toString();
   }
 

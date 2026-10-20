@@ -16,8 +16,9 @@ export default () => {
       refreshSecret:
         refreshSecret ||
         (isProd ? undefined : 'qootk-dev-refresh-secret-change-in-production!!'),
-      expiration: process.env.JWT_EXPIRATION || '15m',
-      refreshExpiration: process.env.JWT_REFRESH_EXPIRATION || '7d',
+      // BHD-SESSION-POLICY: session JWT exp matches the 400-day cookie. No idle timeout.
+      expiration: '400d',
+      refreshExpiration: '400d',
     },
     cors: {
       origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
