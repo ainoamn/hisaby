@@ -85,10 +85,12 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!hydrated || isLoading || bootTimedOut) return;
     if (!isAuthenticated) {
-      const next = encodeURIComponent(`${pathname || "/dashboard"}${typeof window !== "undefined" ? window.location.search : ""}`);
-      router.replace(`/login?next=${next}`);
+      const next = encodeURIComponent(
+        `${pathname || "/dashboard"}${typeof window !== "undefined" ? window.location.search : ""}`,
+      );
+      window.location.replace(`/api/auth/bhd/start?returnTo=${next}`);
     }
-  }, [hydrated, isAuthenticated, isLoading, bootTimedOut, router, pathname]);
+  }, [hydrated, isAuthenticated, isLoading, bootTimedOut, pathname]);
 
   useEffect(() => {
     if (!hydrated || !isAuthenticated || !user) return;
@@ -137,7 +139,7 @@ export default function DashboardLayout({
             className="rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200"
             onClick={() => {
               const next = encodeURIComponent(pathname || "/dashboard");
-              router.replace(`/login?next=${next}`);
+              window.location.assign(`/api/auth/bhd/start?returnTo=${next}`);
             }}
           >
             تسجيل الدخول

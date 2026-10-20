@@ -1,8 +1,9 @@
 "use client";
 
-import { BHD_APPS, type BhdApp } from "@/lib/bhd/apps";
+import { BHD_APPS, hopOrigins, launchUrlForApp, type BhdApp } from "@/lib/bhd/apps";
 import { DEFAULT_IDENTITY_ISSUER } from "@/lib/bhd/issuer";
 import { BhdAppIcon } from "@/components/bhd/BhdAppIcon";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -203,18 +204,58 @@ function accountPageUrl(pageOrigin: string) {
   return `${DEFAULT_IDENTITY_ISSUER}/account`;
 }
 
-function openApp(app: BhdApp, pageOrigin: string) {
-  if (app.mode === "identity") {
-    window.location.assign(accountPageUrl(pageOrigin));
+function hintHop(url: string) {
+  if (!url || url.startsWith("/") || typeof document === "undefined") return;
+  let origin = "";
+  try {
+    origin = new URL(url, window.location.origin).origin;
+  } catch {
     return;
   }
-  if (app.mode === "sso" && app.startUrl) {
-    window.location.assign(app.startUrl);
+  if (!document.head.querySelector(`link[data-bhd-hop="${origin}"]`)) {
+    const pre = document.createElement("link");
+    pre.rel = "preconnect";
+    pre.href = origin;
+    pre.setAttribute("data-bhd-hop", origin);
+    document.head.appendChild(pre);
+  }
+  if (!document.head.querySelector(`link[data-bhd-prefetch="${url}"]`)) {
+    const prefetch = document.createElement("link");
+    prefetch.rel = "prefetch";
+    prefetch.as = "document";
+    prefetch.href = url;
+    prefetch.setAttribute("data-bhd-prefetch", url);
+    document.head.appendChild(prefetch);
+  }
+}
+
+function appLaunchUrl(app: BhdApp, pageOrigin: string) {
+  if (app.mode === "identity") return accountPageUrl(pageOrigin);
+  let url = launchUrlForApp(app, pageOrigin);
+  // The shared catalog treats localhost as the portal. On Hisaby, a relative
+  // path must stay on this host only when this app is the current one.
+  if (url.startsWith("/") && app.origin && pageOrigin && !isCurrentApp(app, pageOrigin)) {
+    url = `${stripSlash(app.origin)}${app.workspacePath || url}`;
+  }
+  return url;
+}
+
+function openApp(app: BhdApp, pageOrigin: string, push: (href: string) => void) {
+  const url = appLaunchUrl(app, pageOrigin);
+  if (url.startsWith("/")) {
+    push(url);
     return;
   }
-  if (app.origin) {
-    window.location.assign(`${stripSlash(app.origin)}/`);
+  try {
+    const target = new URL(url);
+    if (target.origin === window.location.origin) {
+      push(`${target.pathname}${target.search}${target.hash}`);
+      return;
+    }
+  } catch {
+    /* fall through to a full navigation */
   }
+  window.location.assign(url);
 }
 
 function clampCardStyle(anchor: DOMRect, widthPx: number, maxHeightPx: number): CSSProperties {
@@ -264,6 +305,7 @@ export function BhdAppSwitcher({
   const rootRef = useRef<HTMLDivElement>(null);
   const appsId = useId();
   const accountId = useId();
+  const router = useRouter();
   const t = COPY[locale];
 
   const picture =
@@ -272,7 +314,16 @@ export function BhdAppSwitcher({
 
   useEffect(() => {
     setOrigin(window.location.origin);
+    hopOrigins().forEach((item) => hintHop(item));
   }, []);
+
+  useEffect(() => {
+    if (panel !== "apps" || !origin) return;
+    BHD_APPS.forEach((app) => {
+      if (!app.enabled) return;
+      hintHop(appLaunchUrl(app, origin));
+    });
+  }, [panel, origin]);
 
   useEffect(() => {
     setPictureFailed(false);
@@ -322,14 +373,20 @@ export function BhdAppSwitcher({
   function onAppClick(app: BhdApp) {
     if (!app.enabled) return;
     if (app.id === "account") {
-      window.location.assign(accountPageUrl(origin));
+      openApp(app, origin, (href) => {
+        close();
+        router.push(href);
+      });
       return;
     }
     if (origin && isCurrentApp(app, origin)) {
       close();
       return;
     }
-    openApp(app, origin);
+    openApp(app, origin, (href) => {
+      close();
+      router.push(href);
+    });
   }
 
   return (

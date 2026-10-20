@@ -117,6 +117,7 @@ const SLUG_TO_ICON: Record<string, IconId> = {
   hisaby: "hisaby",
   nasab: "nasab",
   baitak: "baitak",
+  "bhd-r": "baitak",
   "ain-oman": "baitak",
   "bhd-store": "store",
   store: "store",

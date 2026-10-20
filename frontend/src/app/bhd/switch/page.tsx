@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { isAllowedStartBack, isBhdSiteHost, postIdentitySwitch } from "@/lib/bhd/accounts";
+import { isAllowedProductBack, isBhdSiteHost, postIdentitySwitch } from "@/lib/bhd/accounts";
 
 function SwitchHandoff() {
   const params = useSearchParams();
@@ -17,7 +17,7 @@ function SwitchHandoff() {
       return;
     }
     void postIdentitySwitch(sub).finally(() => {
-      if (isAllowedStartBack(back)) window.location.replace(back);
+      if (isAllowedProductBack(back)) window.location.replace(back);
       else window.location.replace("/dashboard");
     });
   }, [params]);

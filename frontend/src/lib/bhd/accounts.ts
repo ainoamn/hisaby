@@ -47,13 +47,23 @@ export function isBhdSiteHost(hostname: string): boolean {
   return host === "bhd-om.com" || host.endsWith(".bhd-om.com");
 }
 
-export function isAllowedStartBack(raw: string): boolean {
+export type IdentitySession = {
+  user?: IdentityAccount | null;
+  accounts?: IdentityAccount[];
+};
+
+/** Hisaby client workspace. Middleware sends a missing session to start. */
+export const HISABY_WORKSPACE = "/dashboard";
+
+export function isAllowedProductBack(raw: string): boolean {
   try {
     const url = new URL(raw);
     if (!START_HOSTS.has(url.hostname)) return false;
     const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
     if (!local && url.protocol !== "https:") return false;
-    return url.pathname === "/api/auth/bhd/start";
+    const path = url.pathname || "/";
+    if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) return false;
+    return true;
   } catch {
     return false;
   }
@@ -63,34 +73,60 @@ function validSub(sub: string): boolean {
   return /^[A-Za-z0-9:_-]{6,128}$/.test(sub);
 }
 
+/** Drop the product session so the next workspace load can start once if needed. */
+export async function releaseProductSession(): Promise<void> {
+  await fetch("/api/auth/bhd/release", {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+}
+
 /** POST identity switch. Same-site Lax cookies are sent from *.bhd-om.com. */
-export async function postIdentitySwitch(sub: string): Promise<void> {
-  if (!validSub(sub)) return;
+export async function postIdentitySwitch(sub: string): Promise<IdentitySession | null> {
+  if (!validSub(sub)) return null;
   try {
-    await fetch(`${DEFAULT_IDENTITY_ISSUER}/api/auth/switch`, {
+    const response = await fetch(`${DEFAULT_IDENTITY_ISSUER}/api/auth/switch`, {
       method: "POST",
       credentials: "include",
       mode: "cors",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sub }),
     });
+    if (!response.ok) return null;
+    return (await response.json()) as IdentitySession;
   } catch {
-    // CORP hides the body. The browser may still store Set-Cookie.
+    return null;
   }
 }
 
-export async function switchBhdAccount(sub: string, returnTo: string): Promise<void> {
-  const next = safeProductPath(returnTo);
-  const back = `${window.location.origin}/api/auth/bhd/start?returnTo=${encodeURIComponent(next)}`;
+export type AccountSwitchResult =
+  | { kind: "handoff" }
+  | { kind: "stay"; session: IdentitySession | null }
+  | { kind: "reenter"; session: IdentitySession };
+
+/**
+ * Switch on identity and return the JSON for the header.
+ * A different sub re-enters the workspace once; the page is not reloaded first.
+ */
+export async function switchBhdAccount(
+  sub: string,
+  currentSub?: string,
+): Promise<AccountSwitchResult> {
   if (!isBhdSiteHost(window.location.hostname)) {
+    await releaseProductSession().catch(() => undefined);
     const url = new URL("https://hisaby.bhd-om.com/bhd/switch");
     url.searchParams.set("sub", sub);
-    url.searchParams.set("back", back);
+    url.searchParams.set("back", `${window.location.origin}${HISABY_WORKSPACE}`);
     window.location.assign(url.toString());
-    return;
+    return { kind: "handoff" };
   }
-  await postIdentitySwitch(sub);
-  window.location.assign(back);
+  const session = await postIdentitySwitch(sub);
+  const nextSub = session?.user?.id || session?.user?.sub;
+  if (session?.user && nextSub && nextSub !== currentSub) {
+    return { kind: "reenter", session };
+  }
+  return { kind: "stay", session };
 }
 
 export function addBhdAccount(returnTo: string): void {
@@ -100,8 +136,11 @@ export function addBhdAccount(returnTo: string): void {
   );
 }
 
-export async function signOutThisBhdAccount(sub: string | undefined): Promise<void> {
-  let remaining = true;
+export type SignOutResult =
+  | { kind: "all" }
+  | { kind: "reenter"; session: IdentitySession };
+
+export async function signOutThisBhdAccount(): Promise<SignOutResult> {
   try {
     const response = await fetch(`${DEFAULT_IDENTITY_ISSUER}/api/auth/logout`, {
       method: "POST",
@@ -111,19 +150,16 @@ export async function signOutThisBhdAccount(sub: string | undefined): Promise<vo
       body: JSON.stringify({ all: false }),
     });
     if (response.ok) {
-      const data = (await response.json()) as { user?: { id?: string } | null };
-      remaining = Boolean(data.user?.id);
+      const session = (await response.json()) as IdentitySession;
+      if (session.user?.id || session.user?.sub) {
+        return { kind: "reenter", session };
+      }
     }
   } catch {
-    remaining = Boolean(sub);
+    /* Identity unreachable — end every product session. */
   }
-  if (!remaining || !sub) {
-    window.location.assign("/api/auth/bhd/logout?all=1");
-    return;
-  }
-  window.location.assign(
-    `/api/auth/bhd/logout?sub=${encodeURIComponent(sub)}`,
-  );
+  window.location.assign("/api/auth/bhd/logout?all=1");
+  return { kind: "all" };
 }
 
 export function signOutAllBhdAccounts(): void {
