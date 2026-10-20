@@ -441,6 +441,7 @@ export function BhdAppSwitcher({
           <div className="bhd-switcher-grid-apps">
             {BHD_APPS.map((app) => {
               const current = origin ? isCurrentApp(app, origin) : false;
+              const label = locale === "en" ? app.nameEn : app.nameAr;
               return (
                 <button
                   key={app.id}
@@ -457,14 +458,14 @@ export function BhdAppSwitcher({
                 >
                   <BhdAppIcon
                     id={app.id}
-                    title={app.nameAr}
+                    title={label}
                     className={
                       current
                         ? "bhd-switcher-mark is-current"
                         : "bhd-switcher-mark"
                     }
                   />
-                  <span>{app.nameAr}</span>
+                  <span>{label}</span>
                 </button>
               );
             })}

@@ -597,6 +597,7 @@ authorize وtoken دائماً على https://id.bhd-om.com وليس أصل ال
 | حالة المشغّل | `mode: "browse"` حتى تحقق `GET …/api/auth/bhd/start` → 302 للهوية؛ ثم قلب إلى `"sso"` |
 | جلسة المنتج | 20 أكتوبر 2026 — `BHD-SESSION-POLICY`: كوكي `bhd_access` / `bhd_refresh` / `bhd_csrf` وJWT `exp` وصف الجلسة = 400 يوم حتى «خروج». بلا خمول وبلا `SessionKeepAlive`. `GET /auth/me` قراءة فقط بلا `Set-Cookie` |
 | الحسابات من الرأس | 20 أكتوبر 2026 — [`BHD-ACCOUNT-SWITCHER.md`](BHD-ACCOUNT-SWITCHER.md): حساب نشط واحد. التبديل `POST /api/auth/switch` ثم `/api/auth/bhd/start?returnTo=المسار` بلا `add=1`، مع مسح `bhd-auth` وكوكيز المنتج حتى تتبدل بيانات الشركة. `BhdSilentSso` يطابق `bhdSub` مع `id.bhd-om.com/api/auth/me` ويعيد الربط بصمت عند فتح الرابط. «إضافة حساب آخر» فقط هي `login?add=1`. الشارة بجانب البريد والصورة دائرية بلا شعار داخلها |
+| المشغّل | 20 أكتوبر 2026 — [`BHD-APP-SWITCHER.md`](BHD-APP-SWITCHER.md) القسم 4.1: الكتالوج يشمل «الموارد البشرية» `hr` / `bhd-hr` → `https://hr.bhd-om.com/`. يظهر في مشغّل التسع نقاط وصف «برامجنا» في الفوتر من `gatewayApps()` |
 | أسرار (أسماء فقط) | `BHD_IDENTITY_ISSUER`, `BHD_OAUTH_CLIENT_ID`, `BHD_OAUTH_CLIENT_SECRET`, `BHD_IDENTITY_TOKEN_SECRET` (= `IDENTITY_TOKEN_SECRET` على الهوية، أو `AUTH_SECRET` إن كان الاحتياطي), `JWT_*`, `FRONTEND_URL` |
 | عطل شائع | `?bhd=verify` — ناقص السر أو JWKS فارغ (احتياطي userinfo). `?bhd=exchange` سابقاً بسبب رفض إنشاء المستخدم — أُصلح 23 أغسطس وفق §3.3 |
 | التقنيات | Next.js + NestJS + Prisma + Neon + Render/Vercel — `docs/HISABY-BHD-SSO-2026-08-20.md` · `docs/BHD-PRODUCT-SSO-ADMIN.md` |

@@ -19,6 +19,7 @@ import {
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { landingCopy } from "@/lib/landing-copy";
+import { gatewayApps, launchUrlForApp } from "@/lib/bhd/apps";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCountUp } from "@/hooks/use-count-up";
@@ -1316,6 +1317,21 @@ export function LandingPage({
               </Link>
             </div>
           </div>
+          <nav
+            aria-label={isAr ? "برامجنا" : "Our programs"}
+            className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-semibold"
+          >
+            <span className="text-slate-400">{isAr ? "برامجنا" : "Our programs"}</span>
+            {gatewayApps().map((app) => (
+              <a
+                key={app.id}
+                href={launchUrlForApp(app)}
+                className="text-slate-500 transition hover:text-emerald-900"
+              >
+                {isAr ? app.nameAr : app.nameEn}
+              </a>
+            ))}
+          </nav>
           <p className="text-xs text-slate-400">
             © {new Date().getFullYear()} {t.companyName}. {t.footerRights}.
           </p>
