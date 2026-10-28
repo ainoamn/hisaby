@@ -146,7 +146,10 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
-        const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
+        const originalRequest = error.config as AxiosRequestConfig & {
+          _retry?: boolean;
+          skipAuthRefresh?: boolean;
+        };
         const url = originalRequest?.url || '';
         const skipRefresh =
           url.includes('/auth/login') ||
@@ -154,6 +157,10 @@ class ApiClient {
           url.includes('/auth/google') ||
           url.includes('/auth/refresh') ||
           url.includes('/auth/logout');
+
+        if (originalRequest?.skipAuthRefresh) {
+          return Promise.reject(error);
+        }
 
         if (error.response?.status === 401 && !originalRequest._retry && !skipRefresh) {
           originalRequest._retry = true;
@@ -410,15 +417,31 @@ class ApiClient {
       return this.restorePromise;
     }
 
-    this.restorePromise = this.restoreSessionOnce().finally(() => {
-      this.restorePromise = null;
-    });
+    this.restorePromise = this.restoreSessionOnce()
+      .then((result) => result === "ok")
+      .finally(() => {
+        this.restorePromise = null;
+      });
     return this.restorePromise;
   }
 
-  private async restoreSessionOnce() {
+  /**
+   * Dashboard boot probe. Does not refresh on 401 — a dead cookie must fail
+   * fast instead of holding the shell on a 60s refresh.
+   */
+  bootSession() {
+    return this.restoreSessionOnce({ skipAuthRefresh: true, timeout: 8000 });
+  }
+
+  private async restoreSessionOnce(options?: {
+    skipAuthRefresh?: boolean;
+    timeout?: number;
+  }): Promise<"ok" | "unauthorized" | "unavailable"> {
     try {
-      const res = await this.getMe({ timeout: 15000 });
+      const res = await this.getMe({
+        timeout: options?.timeout ?? 15000,
+        skipAuthRefresh: options?.skipAuthRefresh,
+      } as AxiosRequestConfig);
       const data = res.data as {
         id: string;
         name: string;
@@ -470,11 +493,13 @@ class ApiClient {
         data.company,
         existingToken
       );
-      return true;
-    } catch {
+      return "ok";
+    } catch (error) {
       // Do NOT logout here — a slow/failed probe on /login must not wipe a
       // login that succeeded while this request was still in flight.
-      return false;
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+      if (status === 401 || status === 403) return "unauthorized";
+      return "unavailable";
     }
   }
 

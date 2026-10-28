@@ -40,13 +40,14 @@ export function BhdSilentSso() {
     const guardKey = `bhd-sso:${here}`;
     if (sessionStorage.getItem(guardKey) === "1") return;
 
-    identityFetch("/api/auth/me")
+    identityFetch("/api/auth/me", { signal: AbortSignal.timeout(8000) })
       .then((response) => (response.ok ? response.json() : null))
       .then(async (identity: { user?: { id?: string } | null } | null) => {
         if (cancelled || !identity?.user?.id) return;
         const localResponse = await fetch("/api/auth/me", {
           cache: "no-store",
           credentials: "same-origin",
+          signal: AbortSignal.timeout(8000),
         });
         const local = (await localResponse.json().catch(() => ({}))) as {
           user?: { id?: string } | null;

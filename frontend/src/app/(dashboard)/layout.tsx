@@ -9,7 +9,7 @@ import { MobileAppSwitcher } from "@/components/shared/mobile-app-switcher";
 import { useUIStore } from "@/store/ui";
 import { useAuthStore } from "@/store/auth";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import api from "@/lib/api";
 import {
@@ -19,7 +19,49 @@ import {
 import { homePathForUser } from "@/lib/user-home";
 import { wakeApi } from "@/lib/wake-api";
 
-const BOOT_SAFETY_MS = 12000;
+const BOOT_ESCAPE_KEY = "hisaby-boot-escape";
+
+function escapeAlreadyUsed() {
+  try {
+    return sessionStorage.getItem(BOOT_ESCAPE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markEscapeUsed() {
+  try {
+    sessionStorage.setItem(BOOT_ESCAPE_KEY, "1");
+  } catch {
+    /* private mode */
+  }
+}
+
+function clearEscape() {
+  try {
+    sessionStorage.removeItem(BOOT_ESCAPE_KEY);
+  } catch {
+    /* private mode */
+  }
+}
+
+function startUrl() {
+  const next = `${window.location.pathname}${window.location.search || ""}` || "/dashboard";
+  return `/api/auth/bhd/start?returnTo=${encodeURIComponent(next)}`;
+}
+
+const bootScreenStyle: CSSProperties = {
+  minHeight: "100vh",
+  width: "100%",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 16,
+  padding: 24,
+  textAlign: "center",
+  boxSizing: "border-box",
+};
 
 export default function DashboardLayout({
   children,
@@ -27,7 +69,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { sidebarCollapsed, sidebarOpen, setSidebarOpen } = useUIStore();
-  const { isAuthenticated, isLoading, user } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
   const [hydrated, setHydrated] = useState(false);
@@ -35,62 +77,91 @@ export default function DashboardLayout({
   const [bootRetry, setBootRetry] = useState(0);
 
   useEffect(() => {
-    setHydrated(true);
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      useAuthStore.getState().setLoading(false);
+      setHydrated(true);
+    };
+    if (useAuthStore.persist.hasHydrated()) finish();
+    const unsub = useAuthStore.persist.onFinishHydration(() => finish());
+    const backup = window.setTimeout(finish, 1000);
     wakeApi();
+    return () => {
+      unsub();
+      window.clearTimeout(backup);
+    };
   }, []);
 
-  // Validate session; never leave mobile stuck on the spinner (cold API).
+  // A saved account opens at once. A missing session leaves for SSO.
+  // Never turn isLoading back on — that pinned the shell on the spinner
+  // while /me or a 60s refresh was still running.
   useEffect(() => {
     if (!hydrated) return;
     let cancelled = false;
-    setBootTimedOut(false);
+
+    const leaveForStart = () => {
+      useAuthStore.getState().setLoading(false);
+      if (escapeAlreadyUsed()) {
+        setBootTimedOut(true);
+        return;
+      }
+      markEscapeUsed();
+      window.location.replace(startUrl());
+    };
 
     const safety = window.setTimeout(() => {
-      if (cancelled) return;
+      if (!document.getElementById("hisaby-boot")) return;
       const store = useAuthStore.getState();
       store.setLoading(false);
-      if (!store.isAuthenticated && !store.accessToken) {
-        setBootTimedOut(true);
-      }
-    }, BOOT_SAFETY_MS);
+      if (!store.isAuthenticated && !store.accessToken) leaveForStart();
+    }, 9000);
 
-    (async () => {
-      const store = useAuthStore.getState();
-      if (store.isAuthenticated) {
-        store.setLoading(false);
-      } else {
-        store.setLoading(true);
-      }
-
-      const ok = await api.restoreSession();
-      if (cancelled) return;
-
-      if (!ok) {
-        const still = useAuthStore.getState();
-        // Fresh login keeps accessToken in memory — trust it until /me works.
-        if (!still.accessToken) {
-          still.logout();
-          if (!cancelled) setBootTimedOut(true);
+    const store = useAuthStore.getState();
+    if (store.isAuthenticated) {
+      store.setLoading(false);
+      api.bootSession().then((result) => {
+        if (cancelled) return;
+        window.clearTimeout(safety);
+        if (result === "unauthorized" && !useAuthStore.getState().accessToken) {
+          useAuthStore.getState().logout();
+          leaveForStart();
+          return;
         }
+        clearEscape();
+      });
+      return () => {
+        cancelled = true;
+        window.clearTimeout(safety);
+      };
+    }
+
+    api.bootSession().then((result) => {
+      if (cancelled) {
+        useAuthStore.getState().setLoading(false);
+        return;
+      }
+      window.clearTimeout(safety);
+      if (result === "ok") {
+        clearEscape();
+        useAuthStore.getState().setLoading(false);
+        return;
+      }
+      if (result === "unauthorized") {
+        useAuthStore.getState().logout();
+        leaveForStart();
+        return;
       }
       useAuthStore.getState().setLoading(false);
-    })();
+      setBootTimedOut(true);
+    });
 
     return () => {
       cancelled = true;
       window.clearTimeout(safety);
     };
-  }, [hydrated, router, bootRetry]);
-
-  useEffect(() => {
-    if (!hydrated || isLoading || bootTimedOut) return;
-    if (!isAuthenticated) {
-      const next = encodeURIComponent(
-        `${pathname || "/dashboard"}${typeof window !== "undefined" ? window.location.search : ""}`,
-      );
-      window.location.replace(`/api/auth/bhd/start?returnTo=${next}`);
-    }
-  }, [hydrated, isAuthenticated, isLoading, bootTimedOut, pathname]);
+  }, [hydrated, bootRetry]);
 
   useEffect(() => {
     if (!hydrated || !isAuthenticated || !user) return;
@@ -102,57 +173,87 @@ export default function DashboardLayout({
     }
   }, [hydrated, isAuthenticated, user, pathname, router]);
 
-  if (!hydrated || isLoading) {
-    return (
-      <div className="min-h-screen bg-app flex flex-col items-center justify-center gap-4 p-6">
-        <div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full" />
-        <p className="text-sm text-slate-500 dark:text-slate-400 text-center max-w-xs">
-          جاري الاتصال بالخادم…
-        </p>
-      </div>
-    );
-  }
-
   if (bootTimedOut && !isAuthenticated) {
     return (
-      <div className="min-h-screen bg-app flex flex-col items-center justify-center gap-4 p-6 text-center">
-        <p className="text-base font-semibold text-slate-800 dark:text-slate-100">
+      <div className="min-h-screen bg-app" style={bootScreenStyle}>
+        <p style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
           الخادم يستغرق وقتاً أطول من المعتاد
         </p>
-        <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm">
+        <p style={{ margin: 0, maxWidth: 360, fontSize: 14, lineHeight: 1.6 }}>
           غالباً بعد فترة خمول. أعد المحاولة أو سجّل الدخول من جديد.
         </p>
-        <div className="flex flex-wrap gap-2 justify-center">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
           <button
             type="button"
-            className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white"
+            style={{
+              border: 0,
+              borderRadius: 12,
+              background: "#059669",
+              color: "#fff",
+              padding: "10px 16px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
             onClick={() => {
               wakeApi();
+              clearEscape();
               setBootTimedOut(false);
               setBootRetry((n) => n + 1);
             }}
           >
             إعادة المحاولة
           </button>
-          <button
-            type="button"
-            className="rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200"
-            onClick={() => {
-              const next = encodeURIComponent(pathname || "/dashboard");
-              window.location.assign(`/api/auth/bhd/start?returnTo=${next}`);
+          <a
+            href={`/api/auth/bhd/start?returnTo=${encodeURIComponent(pathname || "/dashboard")}`}
+            style={{
+              borderRadius: 12,
+              border: "1px solid #64748b",
+              padding: "10px 16px",
+              fontWeight: 700,
+              textDecoration: "none",
             }}
           >
             تسجيل الدخول
-          </button>
+          </a>
         </div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
+  if (!hydrated || !isAuthenticated) {
     return (
-      <div className="min-h-screen bg-app flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full" />
+      <div id="hisaby-boot" className="min-h-screen bg-app" style={bootScreenStyle}>
+        <style>{`@keyframes hisaby-spin{to{transform:rotate(360deg)}}`}</style>
+        <div id="hisaby-boot-pending" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              border: "2px solid #10b981",
+              borderTopColor: "transparent",
+              borderRadius: "999px",
+              animation: "hisaby-spin 0.8s linear infinite",
+            }}
+          />
+          <p style={{ margin: 0, fontSize: 14 }}>جاري الاتصال بالخادم…</p>
+          <a
+            href="/api/auth/bhd/start?returnTo=%2Fdashboard"
+            style={{ color: "#34d399", fontWeight: 700, fontSize: 14 }}
+          >
+            تسجيل الدخول
+          </a>
+        </div>
+        <div id="hisaby-boot-fallback" hidden>
+          <p style={{ margin: "0 0 8px", fontSize: 16, fontWeight: 700 }}>
+            تعذّر فتح لوحة التحكم
+          </p>
+          <a
+            href="/api/auth/bhd/start?returnTo=%2Fdashboard"
+            style={{ color: "#34d399", fontWeight: 700 }}
+          >
+            تسجيل الدخول
+          </a>
+        </div>
       </div>
     );
   }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import "./light-theme.css";
 import { Providers } from "@/components/providers";
@@ -56,6 +57,9 @@ export default function RootLayout({
           <ClientErrorBeacon />
           {children}
         </Providers>
+        <Script id="hisaby-boot-escape" strategy="beforeInteractive">
+          {`(function(){setTimeout(function(){var root=document.getElementById("hisaby-boot");if(!root)return;var key="hisaby-boot-escape";var used=false;try{used=sessionStorage.getItem(key)==="1"}catch(e){}if(used){var pending=document.getElementById("hisaby-boot-pending");var fallback=document.getElementById("hisaby-boot-fallback");if(pending)pending.hidden=true;if(fallback)fallback.hidden=false;return}try{sessionStorage.setItem(key,"1")}catch(e){}var path=location.pathname+location.search;location.replace("/api/auth/bhd/start?returnTo="+encodeURIComponent(path||"/dashboard"))},12000)})();`}
+        </Script>
       </body>
     </html>
   );
