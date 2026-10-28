@@ -197,9 +197,7 @@ export default function DashboardPage() {
     <div className="space-y-5 sm:space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <PageHeader title={t("title")} subtitle={t("subtitle")} />
-        {isFetching && view ? (
-          <span className="text-xs text-slate-400 pt-1">جاري التحديث…</span>
-        ) : null}
+        {isFetching && view ? <span className="sr-only">جاري التحديث…</span> : null}
       </div>
 
       {showColdSkeleton ? (

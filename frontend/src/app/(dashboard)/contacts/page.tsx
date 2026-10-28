@@ -939,7 +939,7 @@ function ContactsContent() {
 
 export default function ContactsPage() {
   return (
-    <Suspense fallback={<LoadingSpinner />}>
+    <Suspense fallback={null}>
       <ContactsContent />
     </Suspense>
   );

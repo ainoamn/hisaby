@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { adminCopy } from "@/lib/admin-copy";
@@ -38,41 +38,23 @@ export default function AdminHomePage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = adminCopy[locale === "en" ? "en" : "ar"];
   const en = locale === "en";
-  const [data, setData] = useState<Overview | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["admin-overview"],
+    queryFn: async () => (await api.getAdminOverview()).data as Overview,
+    retry: false,
+  });
+  const status = (error as { response?: { status?: number } } | null)?.response?.status;
+  const errorText = !isError
+    ? null
+    : status === 403
+      ? en
+        ? "No permission for overview. If you are the owner, wait for API redeploy or clear site data and retry."
+        : "لا صلاحية لعرض المؤشرات. إن كنت المالك، انتظر إعادة نشر الـ API أو امسح بيانات الموقع وأعد المحاولة."
+      : en
+        ? "Could not load overview — API may be waking up. Retry shortly."
+        : "تعذر تحميل المؤشرات — قد يكون الخادم يستيقظ. أعد المحاولة بعد لحظات.";
 
-  const load = () => {
-    setLoading(true);
-    setError(null);
-    api
-      .getAdminOverview()
-      .then((res) => setData(res.data as Overview))
-      .catch((err: unknown) => {
-        const status = (err as { response?: { status?: number } })?.response?.status;
-        if (status === 403) {
-          setError(
-            en
-              ? "No permission for overview. If you are the owner, wait for API redeploy or clear site data and retry."
-              : "لا صلاحية لعرض المؤشرات. إن كنت المالك، انتظر إعادة نشر الـ API أو امسح بيانات الموقع وأعد المحاولة.",
-          );
-        } else {
-          setError(
-            en
-              ? "Could not load overview — API may be waking up. Retry shortly."
-              : "تعذر تحميل المؤشرات — قد يكون الخادم يستيقظ. أعد المحاولة بعد لحظات.",
-          );
-        }
-      })
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  if (loading && !data) {
+  if (isLoading && !data) {
     return (
       <div className="space-y-2">
         <p className="text-sm text-slate-500">{t.loading}</p>
@@ -83,13 +65,13 @@ export default function AdminHomePage() {
     );
   }
 
-  if (error && !data) {
+  if (errorText && !data) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-        <p className="text-sm text-amber-900">{error}</p>
+        <p className="text-sm text-amber-900">{errorText}</p>
         <button
           type="button"
-          onClick={load}
+          onClick={() => void refetch()}
           className="text-sm font-bold text-teal-800 hover:underline"
         >
           {en ? "Retry" : "إعادة المحاولة"}

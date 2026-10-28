@@ -52,7 +52,7 @@ interface Subscription {
 
 export default function SubscriptionPage() {
   return (
-    <Suspense fallback={<LoadingSpinner />}>
+    <Suspense fallback={null}>
       <SubscriptionContent />
     </Suspense>
   );

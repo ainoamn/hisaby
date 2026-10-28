@@ -703,7 +703,7 @@ function ReportsPageContent() {
 
 export default function ReportsPage() {
   return (
-    <Suspense fallback={<LoadingSpinner />}>
+    <Suspense fallback={null}>
       <ReportsPageContent />
     </Suspense>
   );

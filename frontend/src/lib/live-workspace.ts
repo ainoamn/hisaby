@@ -54,6 +54,7 @@ export const WORKSPACE_HREFS = [
   "/fx-revaluation",
   "/subscription",
   "/users",
+  "/admin",
   "/pos",
   "/resto",
 ];
@@ -89,6 +90,8 @@ function warmJobs(companyId: string): WarmJob[] {
     { key: ["invoice-stats", "PURCHASE"], run: () => body(api.getInvoiceStats("PURCHASE")) },
     { key: ["contacts", "CUSTOMER"], run: () => body(api.getContacts("CUSTOMER")) },
     { key: ["contacts", "SUPPLIER"], run: () => body(api.getContacts("SUPPLIER")) },
+    { key: ["contacts", "ALL"], run: () => body(api.getContacts()) },
+    { key: ["contacts"], run: () => body(api.getContacts()) },
     { key: ["products"], run: () => body(api.getProducts()) },
     { key: ["product-stats"], run: () => body(api.getProductStats()) },
     { key: ["warehouses"], run: () => body(api.getWarehouses()) },
@@ -124,7 +127,32 @@ function warmJobs(companyId: string): WarmJob[] {
     { key: ["report-balance-sheet"], run: () => body(api.getBalanceSheet()) },
     { key: ["report-trial-balance"], run: () => body(api.getTrialBalance()) },
     { key: ["report-cash-flow"], run: () => body(api.getCashFlowReport()) },
+    { key: ["vat-invoices"], run: () => body(api.getVatInvoices()) },
+    { key: ["vat-stats"], run: () => body(api.getVatStats()) },
+    { key: ["ota-config"], run: () => body(api.getOtaConfig()) },
+    { key: ["messaging-status"], run: () => body(api.getMessagingStatus()) },
+    { key: ["bhd-r-status"], run: () => body(api.getBhdRStatus()) },
+    { key: ["bhd-r-readme"], run: () => body(api.getBhdRReadme()) },
+    { key: ["ai-analytics"], run: () => body(api.getAiAnalytics()) },
+    {
+      key: ["ai-pos-shifts"],
+      run: async () => {
+        const rows = ((await api.listPosShifts()).data || []) as { status?: string }[];
+        return rows.filter((row) => row.status === "CLOSED").slice(0, 5);
+      },
+    },
+    { key: ["subscription-current"], run: () => body(api.getCurrentSubscription()) },
+    { key: ["subscription-plans"], run: () => body(api.getSubscriptionPlans()) },
+    { key: ["platform-gateways"], run: () => body(api.getPlatformGateways()) },
+    { key: ["manager-report-subscriptions"], run: () => body(api.getManagerReportSubscriptions()) },
+    {
+      key: ["fx-revaluation-preview", new Date().toISOString().split("T")[0], 0],
+      run: () => body(api.previewFxRevaluation(new Date().toISOString().split("T")[0])),
+    },
+    { key: ["admin-overview"], run: () => body(api.getAdminOverview()) },
     { key: ["report-sales-summary"], run: () => body(api.getSalesSummary()) },
+    { key: ["report-purchase-summary"], run: () => body(api.getPurchaseSummary()) },
+    { key: ["report-cash-forecast", 8], run: () => body(api.getCashFlowForecast(8)) },
     { key: ["report-inventory-summary"], run: () => body(api.getInventorySummary()) },
     { key: ["report-vat-summary"], run: () => body(api.getVatSummary()) },
     { key: ["report-payroll-summary"], run: () => body(api.getPayrollSummary()) },
@@ -169,50 +197,45 @@ export function watchQueryCache(client: QueryClient, companyId: string) {
   };
 }
 
+const WARM_STALE_MS = 5 * 60_000;
+const WARM_CONCURRENCY = 8;
+
 export function warmWorkspace(client: QueryClient, router: Prefetcher, companyId: string) {
   let cancelled = false;
-  let timer = 0;
-  let index = 0;
   const jobs = warmJobs(companyId);
 
-  const prefetchRoutes = (cursor: number) => {
-    if (cancelled || cursor >= WORKSPACE_HREFS.length) {
-      prefetchData();
-      return;
-    }
+  for (const href of WORKSPACE_HREFS) {
     try {
-      router.prefetch(WORKSPACE_HREFS[cursor]);
+      router.prefetch(href);
     } catch {
       /* route may be unavailable in this build */
     }
-    timer = window.setTimeout(() => prefetchRoutes(cursor + 1), 40);
-  };
+  }
 
-  const prefetchData = () => {
-    if (cancelled || index >= jobs.length || document.hidden) {
-      if (!cancelled && index < jobs.length) {
-        timer = window.setTimeout(prefetchData, 1000);
+  let cursor = 0;
+  const workers = Array.from({ length: WARM_CONCURRENCY }, async () => {
+    while (!cancelled && cursor < jobs.length) {
+      const job = jobs[cursor];
+      cursor += 1;
+      const existing = client.getQueryState(job.key);
+      if (existing?.status === "success" && existing.dataUpdatedAt > Date.now() - WARM_STALE_MS) {
+        continue;
       }
-      return;
+      try {
+        await client.prefetchQuery({
+          queryKey: job.key,
+          queryFn: job.run,
+          staleTime: WARM_STALE_MS,
+        });
+      } catch {
+        client.removeQueries({ queryKey: job.key, exact: true });
+      }
     }
-    const job = jobs[index];
-    index += 1;
-    const existing = client.getQueryState(job.key);
-    const fresh =
-      existing?.status === "success" &&
-      existing.dataUpdatedAt > Date.now() - 30_000;
-    const run = fresh
-      ? Promise.resolve()
-      : client.prefetchQuery({ queryKey: job.key, queryFn: job.run });
-    void run.finally(() => {
-      if (!cancelled) timer = window.setTimeout(prefetchData, 60);
-    });
-  };
+  });
+  void Promise.all(workers);
 
-  timer = window.setTimeout(() => prefetchRoutes(0), 300);
   return () => {
     cancelled = true;
-    window.clearTimeout(timer);
   };
 }
 
