@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, ShoppingBag } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 import { apiErrorMessage } from "@/lib/utils";
@@ -27,8 +29,10 @@ export default function RestoTakeawayPage() {
   const router = useRouter();
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
-  const [orders, setOrders] = useState<TakeawayOrder[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const seed = queryClient.getQueryData<{ orders?: TakeawayOrder[] }>(cashierCache.takeaway);
+  const [orders, setOrders] = useState<TakeawayOrder[]>(seed?.orders || []);
+  const [loading, setLoading] = useState(!seed);
   const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [guestName, setGuestName] = useState("");
@@ -38,6 +42,7 @@ export default function RestoTakeawayPage() {
     try {
       const res = await api.getRestoActiveOrders("TAKEAWAY");
       setOrders(res.data.orders || []);
+      queryClient.setQueryData(cashierCache.takeaway, res.data);
       setLoadError(false);
     } catch (err) {
       setOrders([]);
@@ -46,10 +51,9 @@ export default function RestoTakeawayPage() {
     } finally {
       setLoading(false);
     }
-  }, [t.actionFail]);
+  }, [queryClient, t.actionFail]);
 
   useEffect(() => {
-    setLoading(true);
     void load();
     const id = window.setInterval(() => void load(), 10000);
     return () => window.clearInterval(id);

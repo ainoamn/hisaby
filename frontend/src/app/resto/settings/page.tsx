@@ -2,11 +2,13 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 import { RestoLinkSettings } from "@/components/resto/resto-link-settings";
 import { HisabyAppsLinkHub } from "@/components/shared/hisaby-apps-link-hub";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 import { apiErrorMessage } from "@/lib/utils";
@@ -38,52 +40,78 @@ export default function RestoSettingsPage() {
     user?.role === "MANAGER" ||
     user?.role === "RESTO_MANAGER";
   const canAssign = canManage || user?.role === "WAITER";
-  const [stations, setStations] = useState<Station[]>([]);
+  const queryClient = useQueryClient();
+  const settingsSeed = queryClient.getQueryData<{
+    stations?: Station[];
+    sections?: SectionRow[];
+    staff?: StaffRow[];
+    config?: Awaited<ReturnType<typeof api.getRestoConfig>>["data"];
+  }>(cashierCache.restoSettings);
+  const [stations, setStations] = useState<Station[]>(settingsSeed?.stations || []);
   const [loadError, setLoadError] = useState(false);
-  const [bootLoading, setBootLoading] = useState(true);
+  const [bootLoading, setBootLoading] = useState(!settingsSeed);
   const [name, setName] = useState("");
   const [nameEn, setNameEn] = useState("");
   const [busy, setBusy] = useState(false);
   const [demoBusy, setDemoBusy] = useState(false);
   const [qrBusy, setQrBusy] = useState(false);
   const [sectionBusy, setSectionBusy] = useState(false);
-  const [sections, setSections] = useState<SectionRow[]>([]);
-  const [staff, setStaff] = useState<StaffRow[]>([]);
-  const [pickByZone, setPickByZone] = useState<Record<string, string>>({});
+  const [sections, setSections] = useState<SectionRow[]>(settingsSeed?.sections || []);
+  const [staff, setStaff] = useState<StaffRow[]>(settingsSeed?.staff || []);
+  const [pickByZone, setPickByZone] = useState<Record<string, string>>(() => {
+    const picks: Record<string, string> = {};
+    for (const row of settingsSeed?.sections || []) picks[row.zoneId] = row.userId || "";
+    return picks;
+  });
   const [dayParts, setDayParts] = useState<
     Record<string, { start: number; end: number }>
-  >({
-    breakfast: { start: 5, end: 11 },
-    lunch: { start: 11, end: 16 },
-    dinner: { start: 16, end: 22 },
-    late: { start: 22, end: 5 },
-  });
+  >(
+    settingsSeed?.config?.dayParts || {
+      breakfast: { start: 5, end: 11 },
+      lunch: { start: 11, end: 16 },
+      dinner: { start: 16, end: 22 },
+      late: { start: 22, end: 5 },
+    },
+  );
   const [dayPartMeta, setDayPartMeta] = useState<{
     timezone: string;
     currentDayPart: string;
     currentHour: number;
-  } | null>(null);
+  } | null>(
+    settingsSeed?.config
+      ? {
+          timezone: settingsSeed.config.timezone,
+          currentDayPart: settingsSeed.config.currentDayPart,
+          currentHour: settingsSeed.config.currentHour,
+        }
+      : null,
+  );
   const [dayPartBusy, setDayPartBusy] = useState(false);
-  const [kitchenSla, setKitchenSla] = useState({
-    warnMinutes: 8,
-    criticalMinutes: 15,
-    expoWarnMinutes: 5,
-  });
+  const [kitchenSla, setKitchenSla] = useState(
+    settingsSeed?.config?.kitchenSla || {
+      warnMinutes: 8,
+      criticalMinutes: 15,
+      expoWarnMinutes: 5,
+    },
+  );
   const [slaBusy, setSlaBusy] = useState(false);
-  const [booking, setBooking] = useState({
-    enabled: false,
-    publicSlug: "",
-    publicUrl: "" as string | null,
-    maxParty: 12,
-    minParty: 1,
-    slotMinutes: 30,
-    horizonDays: 14,
-    openHour: 11,
-    closeHour: 23,
-    turnMinutes: 90,
-    autoConfirm: false,
-    autoNotify: true,
-    remindMinutes: 120,
+  const [booking, setBooking] = useState(() => {
+    const saved = settingsSeed?.config?.booking;
+    return {
+      enabled: !!saved?.enabled,
+      publicSlug: saved?.publicSlug || "",
+      publicUrl: (saved?.publicUrl as string | null) || "",
+      maxParty: saved?.maxParty ?? 12,
+      minParty: saved?.minParty ?? 1,
+      slotMinutes: saved?.slotMinutes ?? 30,
+      horizonDays: saved?.horizonDays ?? 14,
+      openHour: saved?.openHour ?? 11,
+      closeHour: saved?.closeHour ?? 23,
+      turnMinutes: saved?.turnMinutes ?? 90,
+      autoConfirm: !!saved?.autoConfirm,
+      autoNotify: saved?.autoNotify !== false,
+      remindMinutes: typeof saved?.remindMinutes === "number" ? saved.remindMinutes : 120,
+    };
   });
   const [bookingBusy, setBookingBusy] = useState(false);
   const [qrTables, setQrTables] = useState<
@@ -158,7 +186,7 @@ export default function RestoSettingsPage() {
   };
 
   const boot = async () => {
-    setBootLoading(true);
+    if (!queryClient.getQueryData(cashierCache.restoSettings)) setBootLoading(true);
     setLoadError(false);
     try {
       await Promise.all([loadStations(), loadSections(), loadDayParts()]);

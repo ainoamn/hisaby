@@ -2,9 +2,11 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
@@ -43,9 +45,13 @@ export default function RestoReservationsPage() {
     user?.role === "RESTO_MANAGER" ||
     user?.role === "WAITER";
 
-  const [rows, setRows] = useState<Reservation[]>([]);
-  const [tables, setTables] = useState<FloorTable[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const seed = queryClient.getQueryData<{ reservations?: Reservation[]; tables?: FloorTable[] }>(
+    cashierCache.reservations,
+  );
+  const [rows, setRows] = useState<Reservation[]>(seed?.reservations || []);
+  const [tables, setTables] = useState<FloorTable[]>(seed?.tables || []);
+  const [loading, setLoading] = useState(!seed);
   const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
@@ -86,7 +92,7 @@ export default function RestoReservationsPage() {
   };
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!queryClient.getQueryData(cashierCache.reservations)) setLoading(true);
     setLoadError(false);
     try {
       const [res, floor] = await Promise.all([
@@ -106,6 +112,10 @@ export default function RestoReservationsPage() {
               name: tb.name,
             }));
       setTables(flat);
+      queryClient.setQueryData(cashierCache.reservations, {
+        reservations: res.data.reservations || [],
+        tables: flat,
+      });
     } catch (err) {
       setRows([]);
       setLoadError(true);
@@ -113,7 +123,7 @@ export default function RestoReservationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [t.actionFail]);
+  }, [queryClient, t.actionFail]);
 
   useEffect(() => {
     void load();

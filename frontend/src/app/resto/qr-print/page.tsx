@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
 import { Loader2, Printer } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 import { apiErrorMessage } from "@/lib/utils";
@@ -23,13 +25,17 @@ type QrTable = {
 export default function RestoQrPrintPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
-  const [tables, setTables] = useState<QrTable[]>([]);
-  const [companyName, setCompanyName] = useState("");
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const qrSeed = queryClient.getQueryData<{ tables: QrTable[]; companyName: string }>(
+    cashierCache.qrTables,
+  );
+  const [tables, setTables] = useState<QrTable[]>(qrSeed?.tables || []);
+  const [companyName, setCompanyName] = useState(qrSeed?.companyName || "");
+  const [loading, setLoading] = useState(!qrSeed);
   const [loadError, setLoadError] = useState(false);
 
   const load = async () => {
-    setLoading(true);
+    if (!queryClient.getQueryData(cashierCache.qrTables)) setLoading(true);
     setLoadError(false);
     try {
       const [floor, tokens] = await Promise.all([
@@ -51,6 +57,11 @@ export default function RestoQrPrintPage() {
         }),
       );
       setTables(withQr);
+      queryClient.setQueryData(cashierCache.qrTables, {
+        tables: withQr,
+        companyName: floor.data.companyName || "Hisaby",
+      });
+      queryClient.setQueryData(cashierCache.floor, floor.data);
     } catch (err) {
       setTables([]);
       setLoadError(true);

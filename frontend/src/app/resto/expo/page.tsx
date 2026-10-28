@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { BellRing, Loader2 } from "lucide-react";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 import { apiErrorMessage } from "@/lib/utils";
@@ -27,8 +29,13 @@ type ExpoItem = {
 export default function RestoExpoPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
-  const [items, setItems] = useState<ExpoItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const expoSeed = queryClient.getQueryData<{
+    items?: ExpoItem[];
+    sla?: { expoWarnMinutes: number };
+  }>(cashierCache.expo);
+  const [items, setItems] = useState<ExpoItem[]>(expoSeed?.items || []);
+  const [loading, setLoading] = useState(!expoSeed);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [expoWarn, setExpoWarn] = useState(5);
@@ -38,6 +45,7 @@ export default function RestoExpoPage() {
     try {
       const res = await api.getRestoExpo();
       setItems(res.data.items || []);
+      queryClient.setQueryData(cashierCache.expo, res.data);
       if (res.data.sla?.expoWarnMinutes) {
         setExpoWarn(res.data.sla.expoWarnMinutes);
       }
@@ -47,7 +55,7 @@ export default function RestoExpoPage() {
     } finally {
       setLoading(false);
     }
-  }, [t.actionFail]);
+  }, [queryClient, t.actionFail]);
 
   const refreshAfterMutation = useCallback(async () => {
     if (sseLive.current) return;
@@ -55,7 +63,7 @@ export default function RestoExpoPage() {
   }, [load]);
 
   useEffect(() => {
-    setLoading(true);
+    if (!queryClient.getQueryData(cashierCache.expo)) setLoading(true);
     sseLive.current = false;
     let es: EventSource | null = null;
     let pollId: number | undefined;
@@ -113,7 +121,7 @@ export default function RestoExpoPage() {
       if (pollId) window.clearInterval(pollId);
       if (connectTimer) window.clearTimeout(connectTimer);
     };
-  }, [load]);
+  }, [load, queryClient]);
 
   const serve = async (itemId: string) => {
     setBusyId(itemId);

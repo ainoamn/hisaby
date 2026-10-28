@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock3, Loader2, Mail, MessageCircle, Printer } from "lucide-react";
 import toast from "react-hot-toast";
 import api, { DualApprovalPayload } from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { apiErrorMessage } from "@/lib/utils";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
@@ -219,7 +220,14 @@ export function PosShiftsView({
   const TILL_FACES = ["50", "20", "10", "5", "1", "0.5", "0.1", "0.05", "0.025"] as const;
   const [lastZ, setLastZ] = useState<ZReport | null>(null);
   const [lastX, setLastX] = useState<ZReport | null>(null);
-  const [warehouseId, setWarehouseId] = useState("");
+  const cachedCtx = qc.getQueryData<{
+    homeWarehouseId?: string | null;
+    canSwitchFreely?: boolean;
+    warehouses?: { id: string; name: string; code: string }[];
+  }>(cashierCache.warehouseCtx);
+  const [warehouseId, setWarehouseId] = useState(
+    () => forcedWarehouseId || cachedCtx?.homeWarehouseId || "",
+  );
   const [warehouses, setWarehouses] = useState<{ id: string; name: string; code: string }[]>([]);
   const [warehousesError, setWarehousesError] = useState(false);
   const [canSwitchWarehouse, setCanSwitchWarehouse] = useState(false);

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
@@ -12,22 +14,33 @@ export function IncentivesSettings() {
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === "ADMIN";
-  const [cashierEnabled, setCashierEnabled] = useState(false);
-  const [cashierPercent, setCashierPercent] = useState("0");
-  const [customerEnabled, setCustomerEnabled] = useState(false);
-  const [pointsPerUnit, setPointsPerUnit] = useState("0");
-  const [redeemEnabled, setRedeemEnabled] = useState(false);
-  const [redeemRate, setRedeemRate] = useState("0");
-  const [receiptFooter, setReceiptFooter] = useState("");
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const incentiveSeed = queryClient.getQueryData<{
+    cashierEnabled?: boolean;
+    cashierPercent?: number;
+    customerEnabled?: boolean;
+    customerPointsPerUnit?: number;
+    redeemEnabled?: boolean;
+    redeemPointsPerUnit?: number;
+    receiptFooter?: string;
+  }>(cashierCache.incentives);
+  const [cashierEnabled, setCashierEnabled] = useState(!!incentiveSeed?.cashierEnabled);
+  const [cashierPercent, setCashierPercent] = useState(String(incentiveSeed?.cashierPercent ?? 0));
+  const [customerEnabled, setCustomerEnabled] = useState(!!incentiveSeed?.customerEnabled);
+  const [pointsPerUnit, setPointsPerUnit] = useState(String(incentiveSeed?.customerPointsPerUnit ?? 0));
+  const [redeemEnabled, setRedeemEnabled] = useState(!!incentiveSeed?.redeemEnabled);
+  const [redeemRate, setRedeemRate] = useState(String(incentiveSeed?.redeemPointsPerUnit ?? 0));
+  const [receiptFooter, setReceiptFooter] = useState(String(incentiveSeed?.receiptFooter ?? ""));
+  const [loading, setLoading] = useState(!incentiveSeed);
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    setLoading(true);
+    if (!queryClient.getQueryData(cashierCache.incentives)) setLoading(true);
     setLoadError(false);
     try {
       const res = await api.getPosIncentivesConfig();
+      queryClient.setQueryData(cashierCache.incentives, res.data);
       setCashierEnabled(!!res.data.cashierEnabled);
       setCashierPercent(String(res.data.cashierPercent ?? 0));
       setCustomerEnabled(!!res.data.customerEnabled);

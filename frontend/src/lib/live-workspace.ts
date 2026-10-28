@@ -1,5 +1,6 @@
 import { dehydrate, hydrate, type QueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { CASHIER_HREFS, cashierCache } from "@/lib/cashier-cache";
 
 type Prefetcher = { prefetch: (href: string) => void };
 
@@ -55,8 +56,7 @@ export const WORKSPACE_HREFS = [
   "/subscription",
   "/users",
   "/admin",
-  "/pos",
-  "/resto",
+  ...CASHIER_HREFS,
 ];
 
 type WarmJob = {
@@ -160,6 +160,117 @@ function warmJobs(companyId: string): WarmJob[] {
     { key: ["report-ap-aging"], run: () => body(api.getApAging()) },
     { key: ["report-cost-center-pl"], run: () => body(api.getCostCenterProfitLoss()) },
     { key: ["report-project-budget"], run: () => body(api.getProjectBudgetReport()) },
+    { key: ["company-security", companyId], run: () => body(api.getCompanySecurity()) },
+  ];
+}
+
+function cashierJobs(): WarmJob[] {
+  return [
+    { key: cashierCache.floor, run: () => body(api.getRestoFloor()) },
+    { key: cashierCache.takeaway, run: () => body(api.getRestoActiveOrders("TAKEAWAY")) },
+    { key: cashierCache.delivery, run: () => body(api.getRestoActiveOrders("DELIVERY")) },
+    { key: cashierCache.menu, run: () => body(api.getRestoMenu()) },
+    { key: cashierCache.menu86, run: () => body(api.getRestoMenu86()) },
+    { key: cashierCache.stations, run: () => body(api.getRestoStations()) },
+    {
+      key: cashierCache.recipes,
+      run: async () => {
+        const [rec, menuRes, productsRes] = await Promise.all([
+          api.getRestoRecipes(),
+          api.getRestoMenu(),
+          api.getProducts(),
+        ]);
+        const raw = Array.isArray(productsRes.data)
+          ? productsRes.data
+          : (productsRes.data as { items?: unknown[] })?.items || [];
+        return {
+          recipes: rec.data.recipes || [],
+          menu: menuRes.data.items || [],
+          ingredients: (raw as Array<Record<string, unknown>>).map((p) => ({
+            id: String(p.id),
+            name: String(p.name || ""),
+            nameEn: (p.nameEn as string | null) || null,
+            sku: String(p.sku || ""),
+            unit: String(p.unit || "piece"),
+          })),
+        };
+      },
+    },
+    { key: cashierCache.kitchen, run: () => body(api.getRestoKitchen()) },
+    { key: cashierCache.expo, run: () => body(api.getRestoExpo()) },
+    {
+      key: cashierCache.reservations,
+      run: async () => {
+        const [res, floor] = await Promise.all([
+          api.getRestoReservations(3),
+          api.getRestoFloor(),
+        ]);
+        const fromZones = (floor.data.zones || []).flatMap(
+          (z: { tables?: Array<{ id: string; code: string; name: string | null }> }) => z.tables || [],
+        );
+        const tables =
+          fromZones.length > 0
+            ? fromZones
+            : (floor.data.tables || []).map((tb: { id: string; code: string; name: string | null }) => ({
+                id: tb.id,
+                code: tb.code,
+                name: tb.name,
+              }));
+        return { reservations: res.data.reservations || [], tables };
+      },
+    },
+    { key: cashierCache.waitlist, run: () => body(api.getRestoWaitlist()) },
+    { key: cashierCache.freeTables, run: () => body(api.getRestoFreeTables()) },
+    { key: cashierCache.board, run: () => body(api.getRestoLiveBoard()) },
+    { key: cashierCache.reports7, run: () => body(api.getRestoReportsSummary(7)) },
+    { key: cashierCache.restoLink, run: () => body(api.getRestoLinkStatus()) },
+    { key: cashierCache.posLink, run: () => body(api.getPosLinkStatus()) },
+    { key: cashierCache.warehouseCtx, run: () => body(api.getPosWarehouseContext()) },
+    { key: cashierCache.approvalsPending, run: () => body(api.listPendingDualControlRequests()) },
+    { key: cashierCache.approvalsHistory, run: () => body(api.listDualControlHistory(50)) },
+    { key: cashierCache.posContacts, run: () => body(api.getContacts("CUSTOMER")) },
+    { key: cashierCache.posBooks, run: () => body(api.getPosBooksSummary()) },
+    { key: cashierCache.posShifts, run: () => body(api.listPosShifts()) },
+    { key: cashierCache.posShiftsToday, run: () => body(api.getPosShiftsToday()) },
+    { key: cashierCache.posShiftDefault, run: () => body(api.getCurrentPosShift(undefined)) },
+    {
+      key: cashierCache.restoSettings,
+      run: async () => {
+        const [stations, sections, staff, config] = await Promise.all([
+          api.getRestoStations(),
+          api.getRestoSectionAssignments(),
+          api.getRestoStaff(),
+          api.getRestoConfig(),
+        ]);
+        return {
+          stations: stations.data.stations || [],
+          sections: sections.data.assignments || [],
+          staff: staff.data.staff || [],
+          config: config.data,
+        };
+      },
+    },
+    {
+      key: cashierCache.restoLinkBundle,
+      run: async () => {
+        const [link, warehouses] = await Promise.all([
+          api.getRestoLinkStatus(),
+          api.getWarehouses(),
+        ]);
+        return { link: link.data, warehouses: warehouses.data };
+      },
+    },
+    {
+      key: cashierCache.posLinkBundle,
+      run: async () => {
+        const [link, warehouses] = await Promise.all([
+          api.getPosLinkStatus(),
+          api.getWarehouses(),
+        ]);
+        return { link: link.data, warehouses: warehouses.data };
+      },
+    },
+    { key: cashierCache.incentives, run: () => body(api.getPosIncentivesConfig()) },
   ];
 }
 
@@ -200,23 +311,13 @@ export function watchQueryCache(client: QueryClient, companyId: string) {
 const WARM_STALE_MS = 5 * 60_000;
 const WARM_CONCURRENCY = 8;
 
-export function warmWorkspace(client: QueryClient, router: Prefetcher, companyId: string) {
-  let cancelled = false;
-  const jobs = warmJobs(companyId);
-
-  for (const href of WORKSPACE_HREFS) {
-    try {
-      router.prefetch(href);
-    } catch {
-      /* route may be unavailable in this build */
-    }
-  }
-
+function runWarmPool(client: QueryClient, jobs: WarmJob[], isCancelled: () => boolean) {
   let cursor = 0;
   const workers = Array.from({ length: WARM_CONCURRENCY }, async () => {
-    while (!cancelled && cursor < jobs.length) {
+    while (!isCancelled() && cursor < jobs.length) {
       const job = jobs[cursor];
       cursor += 1;
+      if (!job) break;
       const existing = client.getQueryState(job.key);
       if (existing?.status === "success" && existing.dataUpdatedAt > Date.now() - WARM_STALE_MS) {
         continue;
@@ -233,6 +334,65 @@ export function warmWorkspace(client: QueryClient, router: Prefetcher, companyId
     }
   });
   void Promise.all(workers);
+}
+
+async function warmPosCatalog(client: QueryClient) {
+  try {
+    const ctx = await client.fetchQuery({
+      queryKey: cashierCache.warehouseCtx,
+      queryFn: () => body(api.getPosWarehouseContext()),
+      staleTime: WARM_STALE_MS,
+    });
+    const wh =
+      ctx?.homeWarehouseId ||
+      ctx?.warehouses?.[0]?.id ||
+      "";
+    if (!wh) return;
+    const rows = await client.fetchQuery({
+      queryKey: ["pos-inventory-products", wh],
+      staleTime: WARM_STALE_MS,
+      queryFn: async () => {
+        const res = await api.syncPosCatalog(wh);
+        return ((res.data?.products as Array<Record<string, unknown>>) || []).map((p) => ({
+          ...p,
+          category: (p.category as string) || "—",
+          unit: (p.unit as string) || "pcs",
+          costPrice: (p.costPrice as number | string) ?? 0,
+          minQuantity: p.minQuantity as number | string | undefined,
+        }));
+      },
+    });
+    await client.prefetchQuery({
+      queryKey: ["pos-shift-current", wh],
+      staleTime: WARM_STALE_MS,
+      queryFn: () => body(api.getCurrentPosShift(wh)),
+    });
+    if (rows.length) {
+      const { saveCatalogCache } = await import("@/lib/pos-catalog-cache");
+      await saveCatalogCache(
+        rows as Parameters<typeof saveCatalogCache>[0],
+        wh,
+      );
+    }
+  } catch {
+    client.removeQueries({ queryKey: cashierCache.warehouseCtx, exact: true });
+  }
+}
+
+export function warmWorkspace(client: QueryClient, router: Prefetcher, companyId: string) {
+  let cancelled = false;
+
+  for (const href of WORKSPACE_HREFS) {
+    try {
+      router.prefetch(href);
+    } catch {
+      /* route may be unavailable in this build */
+    }
+  }
+
+  runWarmPool(client, warmJobs(companyId), () => cancelled);
+  runWarmPool(client, cashierJobs(), () => cancelled);
+  void warmPosCatalog(client);
 
   return () => {
     cancelled = true;

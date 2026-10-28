@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ChefHat, Loader2, RefreshCw, Volume2, VolumeX } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 import { apiErrorMessage } from "@/lib/utils";
@@ -68,12 +70,18 @@ function playChime() {
 export default function RestoKitchenPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
-  const [items, setItems] = useState<KitchenItem[]>([]);
-  const [stations, setStations] = useState<Station[]>([]);
+  const queryClient = useQueryClient();
+  const kitchenSeed = queryClient.getQueryData<{
+    items?: KitchenItem[];
+    stations?: Station[];
+    sla?: { warnMinutes: number; criticalMinutes: number };
+  }>(cashierCache.kitchen);
+  const [items, setItems] = useState<KitchenItem[]>(kitchenSeed?.items || []);
+  const [stations, setStations] = useState<Station[]>(kitchenSeed?.stations || []);
   const [stationId, setStationId] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
   const [soundOn, setSoundOn] = useState(true);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!kitchenSeed);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [sla, setSla] = useState({ warnMinutes: 8, criticalMinutes: 15 });
@@ -112,13 +120,14 @@ export default function RestoKitchenPage() {
       primed.current = true;
       setItems(next);
       setStations(res.data.stations || []);
+      if (!stationId) queryClient.setQueryData(cashierCache.kitchen, res.data);
       setError("");
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setLoading(false);
     }
-  }, [stationId, t.actionFail]);
+  }, [queryClient, stationId, t.actionFail]);
 
   const sseLive = useRef(false);
   const refreshAfterMutation = useCallback(async () => {
@@ -127,7 +136,10 @@ export default function RestoKitchenPage() {
   }, [load]);
 
   useEffect(() => {
-    setLoading(true);
+    const cached = !stationId
+      ? queryClient.getQueryData(cashierCache.kitchen)
+      : undefined;
+    if (!cached) setLoading(true);
     primed.current = false;
     knownIds.current = new Set();
     sseLive.current = false;

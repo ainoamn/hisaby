@@ -1,9 +1,11 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Soup, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
@@ -62,10 +64,16 @@ export default function RestoRecipesPage() {
     user?.role === "MANAGER" ||
     user?.role === "RESTO_MANAGER";
 
-  const [recipes, setRecipes] = useState<RecipeRow[]>([]);
-  const [menu, setMenu] = useState<MenuProduct[]>([]);
-  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const seed = queryClient.getQueryData<{
+    recipes?: RecipeRow[];
+    menu?: MenuProduct[];
+    ingredients?: Ingredient[];
+  }>(cashierCache.recipes);
+  const [recipes, setRecipes] = useState<RecipeRow[]>(seed?.recipes || []);
+  const [menu, setMenu] = useState<MenuProduct[]>(seed?.menu || []);
+  const [ingredients, setIngredients] = useState<Ingredient[]>(seed?.ingredients || []);
+  const [loading, setLoading] = useState(!seed);
   const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [productId, setProductId] = useState("");
@@ -75,7 +83,7 @@ export default function RestoRecipesPage() {
   ]);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!queryClient.getQueryData(cashierCache.recipes)) setLoading(true);
     setLoadError(false);
     try {
       const [rec, menuRes, productsRes] = await Promise.all([
@@ -88,15 +96,19 @@ export default function RestoRecipesPage() {
       const raw = Array.isArray(productsRes.data)
         ? productsRes.data
         : (productsRes.data as { items?: Ingredient[] })?.items || [];
-      setIngredients(
-        (raw as Array<Record<string, unknown>>).map((p) => ({
-          id: String(p.id),
-          name: String(p.name || ""),
-          nameEn: (p.nameEn as string | null) || null,
-          sku: String(p.sku || ""),
-          unit: String(p.unit || "piece"),
-        })),
-      );
+      const ingredientsNext = (raw as Array<Record<string, unknown>>).map((p) => ({
+        id: String(p.id),
+        name: String(p.name || ""),
+        nameEn: (p.nameEn as string | null) || null,
+        sku: String(p.sku || ""),
+        unit: String(p.unit || "piece"),
+      }));
+      setIngredients(ingredientsNext);
+      queryClient.setQueryData(cashierCache.recipes, {
+        recipes: rec.data.recipes || [],
+        menu: menuRes.data.items || [],
+        ingredients: ingredientsNext,
+      });
     } catch (err) {
       setRecipes([]);
       setLoadError(true);
@@ -104,7 +116,7 @@ export default function RestoRecipesPage() {
     } finally {
       setLoading(false);
     }
-  }, [t.actionFail]);
+  }, [queryClient, t.actionFail]);
 
   useEffect(() => {
     void load();

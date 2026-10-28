@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { Loader2, Package, Plus, Printer, RefreshCw, Eye, Pencil, X } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
@@ -48,16 +49,20 @@ export default function PosInventoryPage() {
   const company = useAuthStore((s) => s.company);
   const currency = company?.currency || "OMR";
   const queryClient = useQueryClient();
+  const cachedCtx = queryClient.getQueryData<Awaited<ReturnType<typeof api.getPosWarehouseContext>>["data"]>(
+    cashierCache.warehouseCtx,
+  );
+  const cachedHome = cachedCtx?.homeWarehouseId || cachedCtx?.warehouses?.[0]?.id || null;
   const [q, setQ] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [detailProduct, setDetailProduct] = useState<PosProductRow | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm());
   const [codesLoading, setCodesLoading] = useState(false);
-  const [scopeWarehouseId, setScopeWarehouseId] = useState<string | null>(null);
+  const [scopeWarehouseId, setScopeWarehouseId] = useState<string | null>(cachedHome);
   const [scopeWarehouseLabel, setScopeWarehouseLabel] = useState("");
-  const [canSwitchWarehouse, setCanSwitchWarehouse] = useState(false);
-  const [scopeReady, setScopeReady] = useState(false);
+  const [canSwitchWarehouse, setCanSwitchWarehouse] = useState(!!cachedCtx?.canSwitchFreely);
+  const [scopeReady, setScopeReady] = useState(!!cachedHome);
   const [scopeError, setScopeError] = useState(false);
   const [warehouses, setWarehouses] = useState<
     { id: string; code: string; name: string }[]
@@ -66,7 +71,11 @@ export default function PosInventoryPage() {
   const loadWarehouseScope = useCallback(async () => {
     setScopeError(false);
     try {
-      const res = await api.getPosWarehouseContext();
+      const cached = queryClient.getQueryData<Awaited<ReturnType<typeof api.getPosWarehouseContext>>["data"]>(
+        cashierCache.warehouseCtx,
+      );
+      const res = cached ? { data: cached } : await api.getPosWarehouseContext();
+      if (!cached) queryClient.setQueryData(cashierCache.warehouseCtx, res.data);
       const ctx = res.data;
       setCanSwitchWarehouse(!!ctx.canSwitchFreely);
       setWarehouses(
@@ -96,7 +105,7 @@ export default function PosInventoryPage() {
       setScopeWarehouseLabel("");
       return null;
     }
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     void loadWarehouseScope();

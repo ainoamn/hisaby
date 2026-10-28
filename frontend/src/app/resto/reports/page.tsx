@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { BarChart3, Loader2, Printer } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 import { cn, apiErrorMessage } from "@/lib/utils";
@@ -18,19 +20,29 @@ type Flash = Awaited<ReturnType<typeof api.getRestoFlashReport>>["data"];
 export default function RestoReportsPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
+  const queryClient = useQueryClient();
   const [days, setDays] = useState(7);
-  const [data, setData] = useState<Summary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const seed = queryClient.getQueryData<Summary>(cashierCache.reports7);
+  const [data, setData] = useState<Summary | null>(seed ?? null);
+  const [loading, setLoading] = useState(!seed);
   const [loadError, setLoadError] = useState(false);
   const [flashBusy, setFlashBusy] = useState(false);
   const [hourMode, setHourMode] = useState<"orders" | "revenue">("orders");
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const key = ["resto-reports", days] as const;
+    const cached = queryClient.getQueryData<Summary>(key);
+    if (cached) {
+      setData(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setLoadError(false);
     try {
       const res = await api.getRestoReportsSummary(days);
       setData(res.data);
+      queryClient.setQueryData(key, res.data);
     } catch (err) {
       setData(null);
       setLoadError(true);
@@ -38,7 +50,7 @@ export default function RestoReportsPage() {
     } finally {
       setLoading(false);
     }
-  }, [days, t.actionFail]);
+  }, [days, queryClient, t.actionFail]);
 
   useEffect(() => {
     void load();

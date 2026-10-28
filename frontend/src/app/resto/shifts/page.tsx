@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Wallet } from "lucide-react";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 import { PosShiftsView } from "@/components/pos/pos-shifts-view";
@@ -11,6 +13,7 @@ import { PosShiftsView } from "@/components/pos/pos-shifts-view";
 export default function RestoShiftsPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
+  const queryClient = useQueryClient();
   const [warehouseId, setWarehouseId] = useState<string | null>(null);
   const [warehouseLabel, setWarehouseLabel] = useState("");
   const [loading, setLoading] = useState(true);
@@ -19,14 +22,33 @@ export default function RestoShiftsPage() {
   const [homeMismatch, setHomeMismatch] = useState(false);
 
   const load = async () => {
-    setLoading(true);
+    const cachedLink = queryClient.getQueryData<Awaited<ReturnType<typeof api.getRestoLinkStatus>>["data"]>(
+      cashierCache.restoLink,
+    );
+    const cachedCtx = queryClient.getQueryData<Awaited<ReturnType<typeof api.getPosWarehouseContext>>["data"]>(
+      cashierCache.warehouseCtx,
+    );
+    if (!cachedLink) setLoading(true);
     setLoadError(false);
     setHomeMismatch(false);
     try {
-      const [restoRes, ctxRes] = await Promise.all([
-        api.getRestoLinkStatus(),
-        api.getPosWarehouseContext().catch(() => null),
-      ]);
+      const restoRes = cachedLink
+        ? { data: cachedLink }
+        : await api.getRestoLinkStatus();
+      const ctxRes = cachedCtx
+        ? { data: cachedCtx }
+        : await api.getPosWarehouseContext().catch(() => null);
+      queryClient.setQueryData(cashierCache.restoLink, restoRes.data);
+      if (ctxRes?.data) queryClient.setQueryData(cashierCache.warehouseCtx, ctxRes.data);
+      if (cachedLink || cachedCtx) {
+        void Promise.all([
+          api.getRestoLinkStatus(),
+          api.getPosWarehouseContext().catch(() => null),
+        ]).then(([freshLink, freshCtx]) => {
+          queryClient.setQueryData(cashierCache.restoLink, freshLink.data);
+          if (freshCtx?.data) queryClient.setQueryData(cashierCache.warehouseCtx, freshCtx.data);
+        });
+      }
       const restoId = restoRes.data.warehouseId || null;
       const restoWh = restoRes.data.warehouse as
         | { id?: string; code?: string; name?: string }

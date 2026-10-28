@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Activity, Loader2, RefreshCw } from "lucide-react";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 import { cn, apiErrorMessage } from "@/lib/utils";
@@ -14,25 +16,35 @@ const POLL_MS = 12000;
 export default function RestoLiveBoardPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
-  const [data, setData] = useState<Board | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const seed = queryClient.getQueryData<Board>(cashierCache.board);
+  const [data, setData] = useState<Board | null>(seed ?? null);
+  const [loading, setLoading] = useState(!seed);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    else setRefreshing(true);
+    const cached = queryClient.getQueryData<Board>(cashierCache.board);
+    if (!silent) {
+      if (cached) {
+        setData(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+    } else setRefreshing(true);
     setError("");
     try {
       const res = await api.getRestoLiveBoard();
       setData(res.data);
+      queryClient.setQueryData(cashierCache.board, res.data);
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [t.actionFail]);
+  }, [queryClient, t.actionFail]);
 
   useEffect(() => {
     void load();

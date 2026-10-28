@@ -13,6 +13,7 @@ import {
   Printer,
 } from "lucide-react";
 import api, { type RestoOrderPayload } from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import toast from "react-hot-toast";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
@@ -91,10 +92,15 @@ export default function RestoFloorPage() {
   const t = restoCopy[locale === "en" ? "en" : "ar"];
   const company = useAuthStore((s) => s.company);
   const user = useAuthStore((s) => s.user);
-  const [companyName, setCompanyName] = useState("");
-  const [zones, setZones] = useState<FloorZone[]>([]);
-  const [empty, setEmpty] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const floorSeed = queryClient.getQueryData<{
+    companyName?: string;
+    zones?: FloorZone[];
+    empty?: boolean;
+  }>(cashierCache.floor);
+  const [companyName, setCompanyName] = useState(floorSeed?.companyName || "");
+  const [zones, setZones] = useState<FloorZone[]>(floorSeed?.zones || []);
+  const [empty, setEmpty] = useState(!!floorSeed?.empty);
+  const [loading, setLoading] = useState(!floorSeed?.zones);
   const [seeding, setSeeding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -150,6 +156,17 @@ export default function RestoFloorPage() {
     if (!opts?.silent) setLoading(true);
     setError("");
     try {
+      const warmed = queryClient.getQueryData<{
+        companyName?: string;
+        zones?: typeof zones;
+        empty?: boolean;
+      }>(cashierCache.floor);
+      if (!opts?.silent && warmed?.zones) {
+        setCompanyName(warmed.companyName || "");
+        setZones(warmed.zones);
+        setEmpty(!!warmed.empty);
+        setLoading(false);
+      }
       // Instant paint from session cache while network runs
       if (!opts?.silent) {
         try {
@@ -181,6 +198,11 @@ export default function RestoFloorPage() {
       setCompanyName(res.data.companyName);
       setZones(res.data.zones || []);
       setEmpty(!!res.data.empty);
+      queryClient.setQueryData(cashierCache.floor, {
+        companyName: res.data.companyName,
+        zones: res.data.zones || [],
+        empty: !!res.data.empty,
+      });
       try {
         sessionStorage.setItem(
           "hisaby-resto-floor",
@@ -199,7 +221,7 @@ export default function RestoFloorPage() {
     } finally {
       if (!opts?.silent) setLoading(false);
     }
-  }, [t.actionFail]);
+  }, [queryClient, t.actionFail]);
 
   const loadStaff = useCallback(async () => {
     try {

@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Check, Loader2, ShieldCheck, X } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
@@ -63,9 +65,11 @@ export default function PosApprovalsPage() {
   const locale = useLocaleStore((s) => s.locale);
   const user = useAuthStore((s) => s.user);
   const t = posCopy[locale === "en" ? "en" : "ar"];
+  const queryClient = useQueryClient();
+  const pendingSeed = queryClient.getQueryData<ApprovalRow[]>(cashierCache.approvalsPending);
   const [tab, setTab] = useState<Tab>("pending");
-  const [rows, setRows] = useState<ApprovalRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState<ApprovalRow[]>(pendingSeed || []);
+  const [loading, setLoading] = useState(!pendingSeed);
   const [loadError, setLoadError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -78,15 +82,26 @@ export default function PosApprovalsPage() {
       setLoadError(false);
       return;
     }
-    setLoading(true);
+    const key = tab === "pending" ? cashierCache.approvalsPending : cashierCache.approvalsHistory;
+    const cached = queryClient.getQueryData<ApprovalRow[]>(key);
+    if (cached) {
+      setRows(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setLoadError(false);
     try {
       if (tab === "pending") {
         const res = await api.listPendingDualControlRequests();
-        setRows((res.data as ApprovalRow[]) || []);
+        const next = (res.data as ApprovalRow[]) || [];
+        setRows(next);
+        queryClient.setQueryData(cashierCache.approvalsPending, next);
       } else {
         const res = await api.listDualControlHistory(50);
-        setRows((res.data as ApprovalRow[]) || []);
+        const next = (res.data as ApprovalRow[]) || [];
+        setRows(next);
+        queryClient.setQueryData(cashierCache.approvalsHistory, next);
       }
     } catch {
       setRows([]);
@@ -95,7 +110,7 @@ export default function PosApprovalsPage() {
     } finally {
       setLoading(false);
     }
-  }, [canDecide, tab, t.approvalsFail]);
+  }, [canDecide, queryClient, tab, t.approvalsFail]);
 
   useEffect(() => {
     void load();

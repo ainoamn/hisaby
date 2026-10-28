@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Link2, UtensilsCrossed } from "lucide-react";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
@@ -42,11 +44,18 @@ export function RestoLinkSettings({
     user?.role === "ADMIN" ||
     user?.role === "MANAGER" ||
     user?.role === "RESTO_MANAGER";
-  const [companyName, setCompanyName] = useState("");
+  const queryClient = useQueryClient();
+  const linkSeed = queryClient.getQueryData<{
+    link: { companyName?: string; warehouseId?: string | null };
+    warehouses: Warehouse[];
+  }>(cashierCache.restoLinkBundle);
+  const [companyName, setCompanyName] = useState(linkSeed?.link.companyName || "");
   const [busy, setBusy] = useState(false);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [warehouseId, setWarehouseId] = useState("");
-  const [bootLoading, setBootLoading] = useState(true);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>(
+    Array.isArray(linkSeed?.warehouses) ? linkSeed.warehouses : [],
+  );
+  const [warehouseId, setWarehouseId] = useState(linkSeed?.link.warehouseId || "");
+  const [bootLoading, setBootLoading] = useState(!linkSeed);
   const [loadError, setLoadError] = useState(false);
 
   const refresh = async () => {
@@ -58,10 +67,14 @@ export function RestoLinkSettings({
     const list = (Array.isArray(whRes.data) ? whRes.data : []) as Warehouse[];
     setWarehouses(list);
     setWarehouseId(linkRes.data.warehouseId || "");
+    queryClient.setQueryData(cashierCache.restoLinkBundle, {
+      link: linkRes.data,
+      warehouses: list,
+    });
   };
 
   useEffect(() => {
-    setBootLoading(true);
+    if (!queryClient.getQueryData(cashierCache.restoLinkBundle)) setBootLoading(true);
     setLoadError(false);
     refresh()
       .catch(() => setLoadError(true))

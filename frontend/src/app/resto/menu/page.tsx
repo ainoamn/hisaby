@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Search, UtensilsCrossed, Pencil } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
@@ -183,11 +185,22 @@ export default function RestoMenuPage() {
     user?.role === "ADMIN" ||
     user?.role === "MANAGER" ||
     user?.role === "RESTO_MANAGER";
+  const queryClient = useQueryClient();
+  const menuSeed = queryClient.getQueryData<{ items?: MenuItem[] }>(cashierCache.menu);
+  const stationSeed = queryClient.getQueryData<{ stations?: Station[] }>(cashierCache.stations);
+  const eightySeed = queryClient.getQueryData<{
+    items?: Array<{
+      productId: string;
+      note: string | null;
+      auto?: boolean;
+      product: { name: string; nameEn: string | null } | null;
+    }>;
+  }>(cashierCache.menu86);
   const [q, setQ] = useState("");
-  const [items, setItems] = useState<MenuItem[]>([]);
-  const [stations, setStations] = useState<Station[]>([]);
+  const [items, setItems] = useState<MenuItem[]>(menuSeed?.items || []);
+  const [stations, setStations] = useState<Station[]>(stationSeed?.stations || []);
   const [stationsError, setStationsError] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!menuSeed);
   const [loadError, setLoadError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [eightySix, setEightySix] = useState<
@@ -197,7 +210,7 @@ export default function RestoMenuPage() {
       auto?: boolean;
       product: { name: string; nameEn: string | null } | null;
     }>
-  >([]);
+  >(eightySeed?.items || []);
   const [eightySixError, setEightySixError] = useState(false);
   const [reconciling, setReconciling] = useState(false);
 
@@ -205,12 +218,13 @@ export default function RestoMenuPage() {
     try {
       const res = await api.getRestoMenu86();
       setEightySix(res.data.items || []);
+      queryClient.setQueryData(cashierCache.menu86, res.data);
       setEightySixError(false);
     } catch {
       setEightySix([]);
       setEightySixError(true);
     }
-  }, []);
+  }, [queryClient]);
 
   const reconcile86 = async () => {
     setReconciling(true);
@@ -231,12 +245,13 @@ export default function RestoMenuPage() {
     try {
       const res = await api.getRestoStations();
       setStations(res.data.stations || []);
+      queryClient.setQueryData(cashierCache.stations, res.data);
       setStationsError(false);
     } catch {
       setStations([]);
       setStationsError(true);
     }
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     void loadStations();
@@ -247,11 +262,18 @@ export default function RestoMenuPage() {
     let cancelled = false;
     const timer = window.setTimeout(() => {
       void (async () => {
-        setLoading(true);
+        if (!q.trim() && queryClient.getQueryData(cashierCache.menu)) {
+          setLoading(false);
+        } else if (!items.length) {
+          setLoading(true);
+        }
         setLoadError(false);
         try {
           const res = await api.getRestoMenu(q.trim() || undefined);
-          if (!cancelled) setItems(res.data.items || []);
+          if (!cancelled) {
+            setItems(res.data.items || []);
+            if (!q.trim()) queryClient.setQueryData(cashierCache.menu, res.data);
+          }
         } catch {
           if (!cancelled) {
             setItems([]);

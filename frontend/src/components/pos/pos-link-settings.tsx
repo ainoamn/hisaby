@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Link2, ShoppingCart } from "lucide-react";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
@@ -31,13 +33,25 @@ export function PosLinkSettings({
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const user = useAuthStore((s) => s.user);
   const canManage = user?.role === "ADMIN" || user?.role === "MANAGER";
-  const [companyName, setCompanyName] = useState("");
+  const queryClient = useQueryClient();
+  const linkSeed = queryClient.getQueryData<{
+    link: { companyName?: string; warehouseId?: string | null };
+    warehouses: {
+      id: string;
+      code: string;
+      name: string;
+      nameEn?: string | null;
+      sector?: string;
+      isActive?: boolean;
+    }[];
+  }>(cashierCache.posLinkBundle);
+  const [companyName, setCompanyName] = useState(linkSeed?.link.companyName || "");
   const [busy, setBusy] = useState(false);
   const [warehouses, setWarehouses] = useState<
     { id: string; code: string; name: string; nameEn?: string | null; sector?: string; isActive?: boolean }[]
-  >([]);
-  const [warehouseId, setWarehouseId] = useState("");
-  const [bootLoading, setBootLoading] = useState(true);
+  >((linkSeed?.warehouses || []).filter((w) => w.isActive !== false));
+  const [warehouseId, setWarehouseId] = useState(linkSeed?.link.warehouseId || "");
+  const [bootLoading, setBootLoading] = useState(!linkSeed);
   const [loadError, setLoadError] = useState(false);
 
   const refresh = async () => {
@@ -49,10 +63,14 @@ export function PosLinkSettings({
     const rows = ((whRes.data as typeof warehouses) || []).filter((w) => w.isActive !== false);
     setWarehouses(rows);
     setWarehouseId(linkRes.data.warehouseId || "");
+    queryClient.setQueryData(cashierCache.posLinkBundle, {
+      link: linkRes.data,
+      warehouses: whRes.data,
+    });
   };
 
   useEffect(() => {
-    setBootLoading(true);
+    if (!queryClient.getQueryData(cashierCache.posLinkBundle)) setBootLoading(true);
     setLoadError(false);
     refresh()
       .catch(() => setLoadError(true))

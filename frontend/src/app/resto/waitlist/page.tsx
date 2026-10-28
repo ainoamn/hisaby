@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Loader2, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { cashierCache } from "@/lib/cashier-cache";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 import { apiErrorMessage } from "@/lib/utils";
@@ -43,9 +45,12 @@ export default function RestoWaitlistPage() {
   const router = useRouter();
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [freeTables, setFreeTables] = useState<FloorTable[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const waitSeed = queryClient.getQueryData<{ entries?: Entry[] }>(cashierCache.waitlist);
+  const freeSeed = queryClient.getQueryData<{ tables?: FloorTable[] }>(cashierCache.freeTables);
+  const [entries, setEntries] = useState<Entry[]>(waitSeed?.entries || []);
+  const [freeTables, setFreeTables] = useState<FloorTable[]>(freeSeed?.tables || []);
+  const [loading, setLoading] = useState(!waitSeed);
   const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [guestName, setGuestName] = useState("");
@@ -85,6 +90,8 @@ export default function RestoWaitlistPage() {
       ]);
       setEntries(wl.data.entries || []);
       setFreeTables(free.data.tables || []);
+      queryClient.setQueryData(cashierCache.waitlist, wl.data);
+      queryClient.setQueryData(cashierCache.freeTables, free.data);
       setLoadError(false);
     } catch (err) {
       setEntries([]);
@@ -93,10 +100,9 @@ export default function RestoWaitlistPage() {
     } finally {
       setLoading(false);
     }
-  }, [t.actionFail]);
+  }, [queryClient, t.actionFail]);
 
   useEffect(() => {
-    setLoading(true);
     void load();
     const id = window.setInterval(() => void load(), 15000);
     return () => window.clearInterval(id);
