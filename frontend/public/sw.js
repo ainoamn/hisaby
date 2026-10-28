@@ -1,6 +1,6 @@
-/* Hisaby shell SW v3 — network-first; never poison API or Next chunks. */
-const CACHE = "hisaby-shell-v3";
-const PRECACHE = ["/", "/manifest.webmanifest", "/brand/hisaby-mark.png"];
+/* Hisaby shell SW v4 — network only for pages. Never substitute another page. */
+const CACHE = "hisaby-shell-v4";
+const PRECACHE = ["/manifest.webmanifest", "/brand/hisaby-mark.png"];
 
 function shouldBypass(url) {
   try {
@@ -58,25 +58,20 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Navigations / static brand shell: network first, tiny offline fallback
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req).catch(
+        () =>
+          new Response(
+            "<!doctype html><meta charset=\"utf-8\"><title>حسابي</title><body style=\"font-family:sans-serif;background:#f8fafc;color:#0f172a;padding:2rem\"><p>تعذر تحميل الصفحة. تحقق من الاتصال ثم أعد المحاولة.</p></body>",
+            { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } },
+          ),
+      ),
+    );
+    return;
+  }
+
   event.respondWith(
-    fetch(req)
-      .then((res) => {
-        if (res.ok && req.mode === "navigate") {
-          const copy = res.clone();
-          caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => undefined);
-        }
-        return res;
-      })
-      .catch(async () => {
-        if (req.mode === "navigate") {
-          return (
-            (await caches.match(req)) ||
-            (await caches.match("/")) ||
-            new Response("Offline", { status: 503, statusText: "Offline" })
-          );
-        }
-        return (await caches.match(req)) || new Response("", { status: 504 });
-      })
+    fetch(req).catch(async () => (await caches.match(req)) || new Response("", { status: 504 })),
   );
 });

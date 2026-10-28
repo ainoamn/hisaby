@@ -16,7 +16,7 @@ export function PwaRegister() {
         const keys = await caches.keys();
         await Promise.all(
           keys
-            .filter((k) => k === "hisaby-shell-v1" || k === "hisaby-shell-v2")
+            .filter((k) => k.startsWith("hisaby-shell-") && k !== "hisaby-shell-v4")
             .map((k) => caches.delete(k)),
         );
       } catch {
