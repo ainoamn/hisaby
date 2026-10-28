@@ -100,7 +100,7 @@ export default function RestoSettingsPage() {
     return {
       enabled: !!saved?.enabled,
       publicSlug: saved?.publicSlug || "",
-      publicUrl: (saved?.publicUrl as string | null) || "",
+      publicUrl: saved?.publicUrl ?? null,
       maxParty: saved?.maxParty ?? 12,
       minParty: saved?.minParty ?? 1,
       slotMinutes: saved?.slotMinutes ?? 30,

@@ -370,7 +370,7 @@ async function warmPosCatalog(client: QueryClient) {
     if (rows.length) {
       const { saveCatalogCache } = await import("@/lib/pos-catalog-cache");
       await saveCatalogCache(
-        rows as Parameters<typeof saveCatalogCache>[0],
+        rows as unknown as Parameters<typeof saveCatalogCache>[0],
         wh,
       );
     }
