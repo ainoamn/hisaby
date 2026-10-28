@@ -106,15 +106,17 @@ export default function InventoryPage() {
     },
   });
 
-  const { data: warehouses = [] } = useQuery({
+  const { data: warehouseRows = [] } = useQuery({
     queryKey: ["warehouses"],
     queryFn: async () => {
       const res = await api.getWarehouses();
-      return (res.data as { id: string; code: string; name: string; sector?: string; isActive?: boolean }[]).filter(
-        (w) => w.isActive !== false,
-      );
+      return res.data as { id: string; code: string; name: string; sector?: string; isActive?: boolean }[];
     },
   });
+  const warehouses = useMemo(
+    () => warehouseRows.filter((w) => w.isActive !== false),
+    [warehouseRows],
+  );
 
   const { data: productFields = [] } = useQuery({
     queryKey: ["custom-fields", "PRODUCT"],

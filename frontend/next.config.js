@@ -2,6 +2,12 @@
 const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
+  experimental: {
+    staleTimes: {
+      dynamic: 60,
+      static: 180,
+    },
+  },
   transpilePackages: ['next-intl'],
   poweredByHeader: false,
   async rewrites() {

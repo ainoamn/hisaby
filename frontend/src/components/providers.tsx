@@ -11,6 +11,7 @@ import { useLocaleStore, type Locale } from "@/store/locale";
 import { ThemeAwareToaster } from "@/components/theme-aware-toaster";
 import { SiteVisitTracker } from "@/components/analytics/site-visit-tracker";
 import { PwaRegister } from "@/components/pwa-register";
+import { LiveWorkspace } from "@/components/live/live-workspace";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 
 const messagesMap: Record<Locale, typeof arMessages> = {
@@ -26,9 +27,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 2 * 60 * 1000,
-            gcTime: 10 * 60 * 1000,
-            refetchOnWindowFocus: false,
+            staleTime: 30_000,
+            gcTime: 30 * 60_000,
+            refetchOnWindowFocus: true,
+            refetchOnReconnect: true,
             retry: 1,
           },
         },
@@ -59,6 +61,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <QueryClientProvider client={queryClient}>
           <SiteVisitTracker />
           <PwaRegister />
+          <LiveWorkspace />
           {children}
           <ThemeAwareToaster />
           {process.env.NODE_ENV === "development" ? (

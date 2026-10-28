@@ -948,6 +948,13 @@ class ApiClient {
     return this.get('/dashboard/stats');
   }
 
+  getSyncCursor() {
+    return this.get<{ cursor: string }>('/sync/cursor', {
+      timeout: 8000,
+      skipAuthRefresh: true,
+    } as AxiosRequestConfig);
+  }
+
   // Journal
   getJournals(take = 200) {
     return this.get('/journal', { params: { take: String(take) } });
