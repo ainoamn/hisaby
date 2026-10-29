@@ -4,6 +4,7 @@ import {
   applyAccountIsolation,
   clearProductMemory,
   currentReturnPath,
+  paintPrivacyVeil,
   productStartPath,
   switchWindowAccount,
 } from "@/lib/identity/client";
@@ -127,11 +128,12 @@ export async function switchBhdAccount(sub: string): Promise<void> {
     window.location.assign(url.toString());
     return;
   }
+  paintPrivacyVeil();
   const switched = await switchWindowAccount(sub);
   if (!switched.ok) return;
   clearProductMemory();
   await releaseProductSession().catch(() => undefined);
-  await applyAccountIsolation(switched.token, { force: true });
+  await applyAccountIsolation(switched.token, { force: true, sub: switched.userId || sub });
 }
 
 export function addBhdAccount(): void {

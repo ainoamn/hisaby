@@ -18,6 +18,7 @@ import {
 } from "@/lib/module-permissions";
 import { homePathForUser } from "@/lib/user-home";
 import { wakeApi } from "@/lib/wake-api";
+import { BhdPrivacyGateDashboard } from "@/components/bhd/BhdPrivacyGateDashboard";
 
 const BOOT_ESCAPE_KEY = "hisaby-boot-escape";
 
@@ -260,6 +261,7 @@ export default function DashboardLayout({
 
   return (
     <MaintenanceGate>
+      <BhdPrivacyGateDashboard />
       <div className="min-h-screen bg-app">
         {sidebarOpen && (
           <button

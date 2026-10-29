@@ -1,65 +1,16 @@
-# عزل بيانات الحساب بعد التبديل (خصوصية — لا تتكرر)
+# عزل بيانات الحساب بعد التبديل (خصوصية — نموذج جوجل)
 
-> **الحالة:** إلزامي لكل منتج مرتبط بـ `id.bhd-om.com`.  
-> **تاريخ التحليل:** 29 أكتوبر 2026 — عطل مؤكد على [BHD-HR](https://github.com/ainoamn/BHD-HR).  
-> **لوحة الربط:** https://id.bhd-om.com/admin#connect
-
----
-
-## العَرَض
-
-يتغيّر الحساب في هوية النافذة بعد التبديل، لكن صفحة المنتج (تحية، أرقام، موظفين، منشأة) تبقى كما كانت للحساب السابق.
+> **Issuer:** https://id.bhd-om.com  
+> **النموذج:** `?au=<sub>` + rebind JSON صامت — بلا رسائل «جاري عزل».
 
 ---
 
-## السبب الجذري
+## القاعدة
 
-### أ) على الهوية نفسها (`id.bhd-om.com`) — جُذّر في 29 أكتوبر 2026
+1. **تبويب:** `bhd_account_tokens` + `bhd_active_au` + `?au=` (يُزال `_bhd` بعد التحميل).
+2. **تبديل من القائمة:** `paintPrivacyVeil()` → `switchWindowAccount` (`X-BHD-Persist-Cookie:1`) → form rebind.
+3. **انحراف:** `silentRebind` عبر proxy `frontend/.../rebind` → Nest `POST /api/auth/bhd/rebind` JSON.
+4. **لوحة التحكم:** `BhdPrivacyGateDashboard` في `(dashboard)/layout.tsx`.
+5. **خلفية:** `BhdSilentSso` ~20s.
 
-```
-POST /api/auth/switch مع Bearer
-        │
-        ├─ كان لا يكتب bhd_id إن وُجد Bearer
-        └─ /account وSSR وOAuth يقرآن الكوكي → بيانات أول إيميل تبقى ظاهرة
-```
-
-**الإصلاح:** `/api/auth/switch` يعيد دائماً كتابة `bhd_id` + roster، و`/api/auth/me` يعيد دائماً `token` للحساب النشط، والرأس يعيد تحميل الصفحة بـ `?_bhd=`.
-
-### ب) على المنتجات
-
-```
-تبديل Bearer بدون rebind لجلسة المنتج
-        │
-        ▼
-كوكي المنتج (hr_session وغيرها) تبقى للحساب السابق
-```
-
-أي سقوط من `BhdIdentity.isolate()` إلى `start` مباشرة بلا تذكرة/rebind يعيد عطل المنتج.
-
----
-
-## القاعدة (هوية + منتجات)
-
-### على الهوية
-1. `/api/auth/switch` **يجب** أن يكتب `bhd_id` دائماً (حتى مع Bearer).
-2. بعد التبديل: إعادة تحميل صلبة لصفحة الحساب (`?_bhd=`).
-3. `/api/auth/me` يعيد `token` للحساب النشط في كل رد.
-
-### على المنتجات
-1. **بعد التبديل:** `POST /api/auth/bhd/rebind` بالـ Bearer. 
-2. **ممنوع** بعد التبديل: فتح `/api/auth/bhd/start` دون handoff/rebind.
-3. امسح كوكي نطاق المنشأة مع إعادة الجلسة.
-4. `?_bhd=<timestamp>` على `returnTo`.
-5. أخفِ واجهة الحساب السابق فوراً.
-6. الرأس = جلسة المنتج عند اختلاف `sub`.
-7. `start` يمسح كوكي جلسة المنتج قبل OAuth.
-
-تفاصيل الأمر للوكيل: [`BHD-CURSOR-PRODUCT-WIRE.md`](BHD-CURSOR-PRODUCT-WIRE.md) §3.
-
-مرجع تطبيق مرجعي: BHD-HR `docs/BHD-ACCOUNT-ISOLATION.md` + `src/lib/identity/client.ts`.
-
----
-
-## تحقق
-
-حسابان ببيانات مختلفة → بدّل → الصفحة تُعاد من الخادم للحساب الجديد فقط → نافذة ثانية لا تتأثر.
+مرجع: `frontend/src/lib/identity/client.ts` · `BhdPrivacyGate` · `BhdSilentSso`.

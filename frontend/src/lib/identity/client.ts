@@ -1,6 +1,14 @@
 import { getCachedCatalogApps } from "@/lib/bhd/catalog";
 import { DEFAULT_IDENTITY_ISSUER } from "@/lib/bhd/issuer";
-import { captureWindowToken, windowFetchHeaders } from "@/lib/identity/window-session";
+import {
+  boundWindowToken,
+  captureAccountToken,
+  captureWindowToken,
+  readActiveAu,
+  setActiveAu,
+  tokenForAccount,
+  windowFetchHeaders,
+} from "@/lib/identity/window-session";
 
 export function pageOrigin() {
   return typeof window === "undefined" ? "" : window.location.origin.replace(/\/$/, "");
@@ -27,8 +35,11 @@ export async function identityFetch(path: string, init?: RequestInit) {
   const clone = response.clone();
   void clone
     .json()
-    .then((data: { token?: unknown } | null) => {
-      if (data && typeof data.token === "string") captureWindowToken(data.token);
+    .then((data: { token?: unknown; user?: { id?: string } | null } | null) => {
+      if (!data || typeof data.token !== "string") return;
+      const sub = typeof data.user?.id === "string" ? data.user.id : readActiveAu();
+      if (sub) captureAccountToken(sub, data.token);
+      else captureWindowToken(data.token);
     })
     .catch(() => undefined);
   return response;
@@ -39,16 +50,46 @@ export function currentReturnPath() {
   return `${window.location.pathname}${window.location.search || ""}` || "/dashboard";
 }
 
-export function cacheBustReturnPath(returnTo = "/dashboard") {
+export function accountBoundPath(returnTo = "/dashboard", sub?: string | null) {
   const path = returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/dashboard";
+  const au = (sub || readActiveAu() || "").trim();
   try {
     const url = new URL(path, "https://bhd.local");
     url.searchParams.delete("_bhd");
+    if (au) url.searchParams.set("au", au);
+    else url.searchParams.delete("au");
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return path;
+  }
+}
+
+export function accountBoundReturnPath(returnTo = "/dashboard", sub?: string | null) {
+  const path = accountBoundPath(returnTo, sub);
+  try {
+    const url = new URL(path, "https://bhd.local");
     url.searchParams.set("_bhd", String(Date.now()));
     return `${url.pathname}${url.search}`;
   } catch {
     return path.includes("?") ? `${path}&_bhd=${Date.now()}` : `${path}?_bhd=${Date.now()}`;
   }
+}
+
+export function scrubCacheBustFromUrl() {
+  if (typeof window === "undefined") return;
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("_bhd")) return;
+    url.searchParams.delete("_bhd");
+    const next = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState(window.history.state, "", next || "/dashboard");
+  } catch {
+    /* ignore */
+  }
+}
+
+export function cacheBustReturnPath(returnTo = "/dashboard", sub?: string | null) {
+  return accountBoundReturnPath(returnTo, sub);
 }
 
 export function productStartPath(returnTo = "/dashboard") {
@@ -93,19 +134,33 @@ export function isAccountRebindPending() {
   const raw = sessionStorage.getItem(REBIND_LOCK);
   if (!raw) return false;
   const at = Number(raw);
-  return Number.isFinite(at) && Date.now() - at < 15_000;
+  return Number.isFinite(at) && Date.now() - at < 12_000;
 }
 
-function markIsolationPending() {
-  sessionStorage.setItem(REBIND_LOCK, String(Date.now()));
+export function paintPrivacyVeil(_message?: string) {
+  if (typeof document === "undefined") return;
   try {
     document.documentElement.dataset.bhdSwitching = "1";
+    let veil = document.getElementById("bhd-privacy-veil");
+    if (!veil) {
+      veil = document.createElement("div");
+      veil.id = "bhd-privacy-veil";
+      veil.setAttribute("aria-hidden", "true");
+      veil.style.cssText =
+        "position:fixed;inset:0;z-index:2147483647;background:var(--ink-900,#065f46);pointer-events:none";
+      document.body.appendChild(veil);
+    }
   } catch {
     /* ignore */
   }
 }
 
-function rebindWithWindowToken(token: string, returnTo: string) {
+function markIsolationPending() {
+  sessionStorage.setItem(REBIND_LOCK, String(Date.now()));
+  paintPrivacyVeil();
+}
+
+function rebindWithWindowToken(token: string, returnTo: string, sub?: string | null) {
   clearProductMemory();
   const form = document.createElement("form");
   form.method = "POST";
@@ -116,53 +171,120 @@ function rebindWithWindowToken(token: string, returnTo: string) {
   tokenInput.value = token;
   const returnInput = document.createElement("input");
   returnInput.name = "returnTo";
-  returnInput.value = cacheBustReturnPath(returnTo);
+  returnInput.value = accountBoundReturnPath(returnTo, sub);
   form.append(tokenInput, returnInput);
   document.body.appendChild(form);
   form.submit();
+}
+
+export async function silentRebind(
+  token?: string | null,
+  sub?: string | null,
+): Promise<{ ok: boolean; unchanged?: boolean; userId?: string }> {
+  if (typeof window === "undefined") return { ok: false };
+  const boundSub = (sub || readActiveAu() || "").trim();
+  if (boundSub) setActiveAu(boundSub);
+  const windowToken =
+    token || (boundSub ? tokenForAccount(boundSub) : "") || boundWindowToken() || "";
+  if (!windowToken) return { ok: false };
+
+  try {
+    const response = await fetch("/api/auth/bhd/rebind", {
+      method: "POST",
+      cache: "no-store",
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        token: windowToken,
+        returnTo: accountBoundPath(currentReturnPath(), boundSub),
+      }),
+    });
+    const body = (await response.json().catch(() => ({}))) as {
+      ok?: boolean;
+      unchanged?: boolean;
+      user?: { id?: string } | null;
+    };
+    if (!response.ok || !body.ok) return { ok: false };
+    if (body.user?.id) setActiveAu(body.user.id);
+    return { ok: true, unchanged: Boolean(body.unchanged), userId: body.user?.id };
+  } catch {
+    return { ok: false };
+  }
 }
 
 export async function switchWindowAccount(
   sub: string,
 ): Promise<{ ok: boolean; token?: string; userId?: string }> {
   if (!sub) return { ok: false };
+  paintPrivacyVeil();
   const response = await identityFetch("/api/auth/switch", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-BHD-Persist-Cookie": "1",
+    },
     body: JSON.stringify({ sub }),
   });
   const body = (await response.json().catch(() => ({}))) as {
     token?: string;
     user?: { id?: string } | null;
   };
-  if (typeof body.token === "string") captureWindowToken(body.token);
+  const userId = typeof body.user?.id === "string" ? body.user.id : sub;
+  if (typeof body.token === "string") {
+    captureAccountToken(userId, body.token);
+    setActiveAu(userId);
+  }
   return {
     ok: response.ok,
     token: typeof body.token === "string" ? body.token : undefined,
-    userId: body.user?.id,
+    userId,
   };
 }
 
-export async function applyAccountIsolation(token?: string | null, options?: { force?: boolean }) {
+export async function applyAccountIsolation(
+  token?: string | null,
+  options?: { force?: boolean; sub?: string | null; silent?: boolean },
+) {
   if (typeof window === "undefined") return;
   if (!options?.force && isAccountRebindPending()) return;
+  const sub = (options?.sub || readActiveAu() || "").trim();
+  if (sub) setActiveAu(sub);
   const here = currentReturnPath();
   if (isIdentityOrigin()) {
-    window.location.reload();
+    window.location.assign(accountBoundPath(here, sub));
     return;
   }
-  markIsolationPending();
-  const windowToken = token || sessionStorage.getItem("bhd_window_token") || "";
 
+  const windowToken =
+    token || (sub ? tokenForAccount(sub) : "") || boundWindowToken() || sessionStorage.getItem("bhd_window_token") || "";
+
+  if (options?.silent) {
+    const result = await silentRebind(windowToken, sub);
+    if (result.ok && result.unchanged) {
+      clearAccountRebindLock();
+      scrubCacheBustFromUrl();
+      return;
+    }
+    if (result.ok && result.userId) {
+      sessionStorage.setItem(REBIND_LOCK, String(Date.now()));
+      window.location.replace(accountBoundPath(here, result.userId));
+      return;
+    }
+  }
+
+  markIsolationPending();
   if (windowToken) {
-    rebindWithWindowToken(windowToken, here);
+    rebindWithWindowToken(windowToken, here, sub);
     return;
   }
 
   try {
     const response = await identityFetch("/api/auth/window-handoff", { method: "POST" });
     const data = (await response.json().catch(() => ({}))) as { ticket?: string };
-    const start = new URL(productStartPath(cacheBustReturnPath(here)), window.location.origin).toString();
+    const start = new URL(productStartPath(accountBoundReturnPath(here, sub)), window.location.origin).toString();
     if (response.ok && data.ticket) {
       const handoff = new URL("/auth/handoff", DEFAULT_IDENTITY_ISSUER);
       handoff.searchParams.set("ticket", data.ticket);
@@ -175,7 +297,7 @@ export async function applyAccountIsolation(token?: string | null, options?: { f
   }
 
   window.location.assign(
-    `/api/auth/bhd/logout?continue=${encodeURIComponent(productStartPath(cacheBustReturnPath(here)))}`,
+    `/api/auth/bhd/logout?continue=${encodeURIComponent(productStartPath(accountBoundReturnPath(here, sub)))}`,
   );
 }
 
@@ -184,6 +306,7 @@ export function clearAccountRebindLock() {
   sessionStorage.removeItem(REBIND_LOCK);
   try {
     delete document.documentElement.dataset.bhdSwitching;
+    document.getElementById("bhd-privacy-veil")?.remove();
   } catch {
     /* ignore */
   }

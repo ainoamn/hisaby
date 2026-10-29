@@ -33,9 +33,15 @@ export async function GET(req: NextRequest) {
       cache: "no-store",
     });
     if (!upstream.ok) return NextResponse.json({ user: null });
-    const data = (await upstream.json()) as { bhdSub?: string | null; bhd_sub?: string | null };
+    const data = (await upstream.json()) as {
+      bhdSub?: string | null;
+      bhd_sub?: string | null;
+      email?: string | null;
+    };
     const id = data.bhdSub || data.bhd_sub || null;
-    return NextResponse.json({ user: id ? { id } : null });
+    return NextResponse.json({
+      user: id ? { id, email: typeof data.email === "string" ? data.email : undefined } : null,
+    });
   } catch {
     return NextResponse.json({ user: null });
   }

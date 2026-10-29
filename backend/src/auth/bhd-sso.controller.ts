@@ -38,6 +38,23 @@ function safeReturnTo(raw: string | null | undefined): string {
   return v;
 }
 
+function bindReturnPath(returnTo: string, sub: string): string {
+  const safe = safeReturnTo(returnTo);
+  try {
+    const url = new URL(safe, 'https://bhd.local');
+    url.searchParams.set('au', sub);
+    url.searchParams.set('_bhd', String(Date.now()));
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return safe;
+  }
+}
+
+function wantsJson(req: Request): boolean {
+  const accept = req.headers.get('accept') || '';
+  return accept.includes('application/json');
+}
+
 @ApiTags('Auth / BHD Identity')
 @Controller('auth')
 export class BhdSsoController {
@@ -268,6 +285,7 @@ export class BhdSsoController {
   })
   async rebind(@Req() req: Request, @Res() res: Response) {
     const origin = this.requestOrigin(req);
+    const json = wantsJson(req);
     const body = (req.body || {}) as { token?: string; returnTo?: string };
     let token = typeof body.token === 'string' ? body.token.trim() : '';
     let returnTo = safeReturnTo(body.returnTo);
@@ -275,6 +293,10 @@ export class BhdSsoController {
       token = req.headers.authorization.slice(7).trim();
     }
     if (!token || token.length < 20) {
+      if (json) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(401).json({ ok: false, error: 'token' });
+      }
       return res.redirect(
         303,
         `${origin}/api/auth/bhd/start?returnTo=${encodeURIComponent(returnTo)}`,
@@ -296,7 +318,19 @@ export class BhdSsoController {
       const profile = await this.bhdSso.profileFromWindowToken(token);
       if (currentSub && currentSub === profile.sub) {
         res.setHeader('Cache-Control', 'no-store');
-        return res.redirect(303, `${origin}${returnTo}`);
+        if (json) {
+          const account = await this.authService.rosterAccountFromAccessToken(access!);
+          return res.status(200).json({
+            ok: true,
+            unchanged: true,
+            user: {
+              id: profile.sub,
+              email: account?.email || profile.email,
+              name: account?.name || profile.name,
+            },
+          });
+        }
+        return res.redirect(303, `${origin}${bindReturnPath(returnTo, profile.sub)}`);
       }
       clearAuthCookies(res);
       const { tokens, identity } = await this.bhdSso.rebindFromWindowToken(token, {
@@ -310,11 +344,24 @@ export class BhdSsoController {
         setRosterCookie(res, upsertRoster(prev, account));
       }
       res.setHeader('Cache-Control', 'no-store');
-      return res.redirect(303, `${origin}${returnTo}`);
+      if (json) {
+        return res.status(200).json({
+          ok: true,
+          user: {
+            id: profile.sub,
+            email: identity.email || profile.email,
+            name: identity.name || profile.name,
+          },
+        });
+      }
+      return res.redirect(303, `${origin}${bindReturnPath(returnTo, profile.sub)}`);
     } catch (err: unknown) {
       clearAuthCookies(res);
       const errCode = this.bhdErrorCode(err);
       this.logger.warn(`BHD rebind failed code=${errCode || 'none'}`);
+      if (json) {
+        return res.status(401).json({ ok: false, error: 'rebind' });
+      }
       return res.redirect(
         303,
         `${origin}/api/auth/bhd/logout?continue=${encodeURIComponent(
