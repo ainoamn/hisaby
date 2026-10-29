@@ -1,9 +1,11 @@
 import { DEFAULT_IDENTITY_ISSUER } from "@/lib/bhd/issuer";
 import {
   addAccountUrl,
+  applyAccountIsolation,
   clearProductMemory,
   currentReturnPath,
   productStartPath,
+  switchWindowAccount,
 } from "@/lib/identity/client";
 
 export type AuthProviderMark = "password" | "google" | "facebook" | "whatsapp";
@@ -125,11 +127,11 @@ export async function switchBhdAccount(sub: string): Promise<void> {
     window.location.assign(url.toString());
     return;
   }
-  const session = await postIdentitySwitch(sub);
-  if (!session?.user?.id && !session?.user?.sub) return;
+  const switched = await switchWindowAccount(sub);
+  if (!switched.ok) return;
   clearProductMemory();
   await releaseProductSession().catch(() => undefined);
-  window.location.assign(productStartPath(here));
+  await applyAccountIsolation(switched.token, { force: true });
 }
 
 export function addBhdAccount(): void {
@@ -150,7 +152,7 @@ export async function signOutThisBhdAccount(): Promise<void> {
       if (session.user?.id || session.user?.sub) {
         clearProductMemory();
         await releaseProductSession().catch(() => undefined);
-        window.location.assign(productStartPath(currentReturnPath()));
+        await applyAccountIsolation(undefined, { force: true });
         return;
       }
     }

@@ -1,5 +1,6 @@
 import { Response, CookieOptions } from 'express';
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { identitySessionMaxAgeMs, identitySessionMaxAgeSecCached } from './bhd-runtime';
 
 export const ACCESS_COOKIE = 'bhd_access';
 export const REFRESH_COOKIE = 'bhd_refresh';
@@ -7,12 +8,10 @@ export const CSRF_COOKIE = 'bhd_csrf';
 /** Product-local mirror of identity accounts signed into this browser. Host-only. */
 export const ROSTER_COOKIE = 'bhd_roster';
 export const MAX_ROSTER_ACCOUNTS = 8;
-/**
- * BHD-SESSION-POLICY: stay signed in until explicit logout.
- * 400 days is Chromium's practical cap. JWT exp matches this cookie.
- */
-export const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 400;
-export const SESSION_MAX_AGE_MS = SESSION_MAX_AGE_SEC * 1000;
+
+/** Live default from id.bhd-om.com/api/bhd/runtime (40d fallback). */
+export const SESSION_MAX_AGE_SEC = identitySessionMaxAgeSecCached();
+export const SESSION_MAX_AGE_MS = identitySessionMaxAgeMs();
 export const SESSION_JWT_EXPIRES_IN = '400d';
 
 export const AUTH_PROVIDERS = ['password', 'google', 'facebook', 'whatsapp'] as const;
@@ -49,18 +48,19 @@ export function setAuthCookies(
   tokens: { accessToken: string; refreshToken: string },
 ) {
   const base = baseCookieOptions();
+  const maxAge = identitySessionMaxAgeMs();
   res.cookie(ACCESS_COOKIE, tokens.accessToken, {
     ...base,
-    maxAge: SESSION_MAX_AGE_MS,
+    maxAge,
   });
   res.cookie(REFRESH_COOKIE, tokens.refreshToken, {
     ...base,
-    maxAge: SESSION_MAX_AGE_MS,
+    maxAge,
   });
   res.cookie(CSRF_COOKIE, randomBytes(24).toString('base64url'), {
     ...base,
     httpOnly: false,
-    maxAge: SESSION_MAX_AGE_MS,
+    maxAge,
   });
 }
 
@@ -220,7 +220,7 @@ export function setRosterCookie(res: Response, accounts: ProductRosterAccount[])
   if (!value) return;
   res.cookie(ROSTER_COOKIE, value, {
     ...baseCookieOptions(),
-    maxAge: SESSION_MAX_AGE_MS,
+    maxAge: identitySessionMaxAgeMs(),
   });
 }
 

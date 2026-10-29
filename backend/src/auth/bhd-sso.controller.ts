@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Query,
   Req,
   Res,
@@ -27,6 +28,15 @@ import {
   upsertRoster,
 } from './auth-cookies';
 import { AuthService } from './auth.service';
+
+function safeReturnTo(raw: string | null | undefined): string {
+  const v = (raw || '/dashboard').trim();
+  if (!v.startsWith('/') || v.startsWith('//') || v.includes('://') || v.includes('\\')) {
+    return '/dashboard';
+  }
+  if (v === '/') return '/dashboard';
+  return v;
+}
 
 @ApiTags('Auth / BHD Identity')
 @Controller('auth')
@@ -249,6 +259,69 @@ export class BhdSsoController {
       return fromBody(err.message);
     }
     return '';
+  }
+
+  @Post('bhd/rebind')
+  @SkipThrottle()
+  @ApiOperation({
+    summary: 'Rebind Hisaby session to this window identity Bearer account',
+  })
+  async rebind(@Req() req: Request, @Res() res: Response) {
+    const origin = this.requestOrigin(req);
+    const body = (req.body || {}) as { token?: string; returnTo?: string };
+    let token = typeof body.token === 'string' ? body.token.trim() : '';
+    let returnTo = safeReturnTo(body.returnTo);
+    if (!token && req.headers.authorization?.toLowerCase().startsWith('bearer ')) {
+      token = req.headers.authorization.slice(7).trim();
+    }
+    if (!token || token.length < 20) {
+      return res.redirect(
+        303,
+        `${origin}/api/auth/bhd/start?returnTo=${encodeURIComponent(returnTo)}`,
+      );
+    }
+
+    const access = req.cookies?.[ACCESS_COOKIE] as string | undefined;
+    let currentSub: string | null = null;
+    if (access) {
+      try {
+        const account = await this.authService.rosterAccountFromAccessToken(access);
+        currentSub = account?.sub || null;
+      } catch {
+        /* ignore */
+      }
+    }
+
+    try {
+      const profile = await this.bhdSso.profileFromWindowToken(token);
+      if (currentSub && currentSub === profile.sub) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.redirect(303, `${origin}${returnTo}`);
+      }
+      clearAuthCookies(res);
+      const { tokens, identity } = await this.bhdSso.rebindFromWindowToken(token, {
+        ipAddress: typeof req.ip === 'string' ? req.ip : undefined,
+        userAgent: this.normalizeUserAgent(req.headers['user-agent']),
+      });
+      setAuthCookies(res, tokens);
+      const account = normalizeRosterAccount(identity);
+      if (account) {
+        const prev = readRosterCookie(req.cookies?.[ROSTER_COOKIE] as string | undefined);
+        setRosterCookie(res, upsertRoster(prev, account));
+      }
+      res.setHeader('Cache-Control', 'no-store');
+      return res.redirect(303, `${origin}${returnTo}`);
+    } catch (err: unknown) {
+      clearAuthCookies(res);
+      const errCode = this.bhdErrorCode(err);
+      this.logger.warn(`BHD rebind failed code=${errCode || 'none'}`);
+      return res.redirect(
+        303,
+        `${origin}/api/auth/bhd/logout?continue=${encodeURIComponent(
+          `/api/auth/bhd/start?returnTo=${encodeURIComponent(returnTo)}`,
+        )}`,
+      );
+    }
   }
 
   @Get('bhd/accounts')

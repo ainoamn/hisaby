@@ -138,6 +138,62 @@ export function applyUpstreamCookies(res: NextResponse, from: Headers) {
  * Proxy BHD SSO endpoints through the Next origin so Set-Cookie lands on
  * hisaby.* (Vercel external rewrites alone often drop / mis-scope cookies).
  */
+export async function proxyBhdAuthMutate(
+  req: NextRequest,
+  apiPath: string,
+): Promise<NextResponse> {
+  const url = new URL(req.url);
+  const target = `${backendBase()}${apiPath}${url.search}`;
+  const host = req.headers.get("host") || url.host;
+  const proto =
+    req.headers.get("x-forwarded-proto") ||
+    url.protocol.replace(":", "") ||
+    "https";
+  const contentType = req.headers.get("content-type") || "";
+  const body =
+    req.method !== "GET" && req.method !== "HEAD"
+      ? await req.arrayBuffer()
+      : undefined;
+
+  const upstream = await fetch(target, {
+    method: req.method,
+    headers: {
+      cookie: req.headers.get("cookie") || "",
+      "user-agent": req.headers.get("user-agent") || "",
+      accept: req.headers.get("accept") || "*/*",
+      "content-type": contentType,
+      authorization: req.headers.get("authorization") || "",
+      "x-forwarded-host": host,
+      "x-forwarded-proto": proto,
+    },
+    body,
+    redirect: "manual",
+    cache: "no-store",
+  });
+
+  const status = upstream.status;
+  const location = upstream.headers.get("location");
+
+  if (status >= 300 && status < 400 && location) {
+    const dest = resolveRedirect(location, req);
+    const res = NextResponse.redirect(
+      dest,
+      status as 301 | 302 | 303 | 307 | 308,
+    );
+    applyUpstreamCookies(res, upstream.headers);
+    res.headers.set("cache-control", "no-store");
+    return res;
+  }
+
+  const outBody = await upstream.arrayBuffer();
+  const res = new NextResponse(outBody, { status });
+  const ct = upstream.headers.get("content-type");
+  if (ct) res.headers.set("content-type", ct);
+  applyUpstreamCookies(res, upstream.headers);
+  res.headers.set("cache-control", "no-store");
+  return res;
+}
+
 export async function proxyBhdAuth(
   req: NextRequest,
   apiPath: string,

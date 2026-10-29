@@ -49,7 +49,7 @@ const nextConfig = {
           {
             key: 'Content-Security-Policy',
             value:
-              "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://id.bhd-om.com; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://hisaby-api.onrender.com https://id.bhd-om.com https://accounts.google.com https://*.sentry.io; frame-src https://accounts.google.com https://id.bhd-om.com; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests",
+              "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://id.bhd-om.com; script-src 'self' 'unsafe-inline' https://id.bhd-om.com https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: https://id.bhd-om.com; font-src 'self' data:; connect-src 'self' https://hisaby-api.onrender.com https://id.bhd-om.com https://accounts.google.com https://*.sentry.io; frame-src https://accounts.google.com https://id.bhd-om.com; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests",
           },
         ],
       },

@@ -1,6 +1,13 @@
 "use client";
 
-import { identityFetch, productStartPath } from "@/lib/identity/client";
+import {
+  applyAccountIsolation,
+  clearAccountRebindLock,
+  isAccountRebindPending,
+  isIdentityOrigin,
+  productStartPath,
+} from "@/lib/identity/client";
+import { loadBhdIdentity } from "@/lib/identity/bhd-browser";
 import { useEffect } from "react";
 
 const PUBLIC_PREFIX = [
@@ -26,24 +33,23 @@ const PUBLIC_PREFIX = [
   "/maintenance",
 ];
 
-/**
- * A direct link follows the active identity account.
- * Mismatch rebinds through start once. No login form and no add=1.
- */
 export function BhdSilentSso() {
   useEffect(() => {
     const path = window.location.pathname;
     if (path === "/" || PUBLIC_PREFIX.some((item) => path.startsWith(item))) return;
+    if (isIdentityOrigin() || isAccountRebindPending()) return;
 
     let cancelled = false;
-    const here = `${window.location.pathname}${window.location.search || ""}` || "/dashboard";
-    const guardKey = `bhd-sso:${here}`;
-    if (sessionStorage.getItem(guardKey) === "1") return;
 
-    identityFetch("/api/auth/me", { signal: AbortSignal.timeout(8000) })
-      .then((response) => (response.ok ? response.json() : null))
-      .then(async (identity: { user?: { id?: string } | null } | null) => {
-        if (cancelled || !identity?.user?.id) return;
+    void loadBhdIdentity().then(async (identity) => {
+      if (cancelled || !identity) return;
+      try {
+        const { ok, body } = await identity.me();
+        if (cancelled || !ok || !body.user?.id) {
+          clearAccountRebindLock();
+          return;
+        }
+
         const localResponse = await fetch("/api/auth/me", {
           cache: "no-store",
           credentials: "same-origin",
@@ -53,16 +59,28 @@ export function BhdSilentSso() {
           user?: { id?: string } | null;
         };
         if (cancelled) return;
-        if (local.user?.id && local.user.id === identity.user.id) return;
-        try {
-          localStorage.removeItem("bhd-auth");
-        } catch {
-          /* ignore */
+
+        if (local.user?.id && local.user.id === body.user.id) {
+          clearAccountRebindLock();
+          return;
         }
-        sessionStorage.setItem(guardKey, "1");
-        window.location.replace(productStartPath(here));
-      })
-      .catch(() => undefined);
+
+        const guardKey = `bhd-sso:${body.user.id}`;
+        const last = Number(sessionStorage.getItem(guardKey) || "0");
+        if (last && Date.now() - last < 15_000) return;
+        sessionStorage.setItem(guardKey, String(Date.now()));
+
+        if (!local.user?.id) {
+          const here = `${window.location.pathname}${window.location.search || ""}` || "/dashboard";
+          window.location.replace(identity.productStart(here) || productStartPath(here));
+          return;
+        }
+
+        await applyAccountIsolation(body.token, { force: true });
+      } catch {
+        clearAccountRebindLock();
+      }
+    });
 
     return () => {
       cancelled = true;

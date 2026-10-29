@@ -5,6 +5,7 @@ import "./light-theme.css";
 import { Providers } from "@/components/providers";
 import { ClientErrorBeacon } from "@/components/system/client-error-beacon";
 import { BhdSilentSso } from "@/components/bhd/BhdSilentSso";
+import { IDENTITY_SCRIPT_URL } from "@/lib/bhd/runtime";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -52,6 +53,7 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body className="font-sans antialiased">
+        <Script src={IDENTITY_SCRIPT_URL} strategy="afterInteractive" />
         <Providers>
           <BhdSilentSso />
           <ClientErrorBeacon />

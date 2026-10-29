@@ -520,4 +520,80 @@ export class BhdSsoService {
     });
     return payload as Record<string, unknown>;
   }
+
+  /** Window Bearer → identity profile (privacy rebind path). */
+  async profileFromWindowToken(token: string): Promise<IdClaims> {
+    const response = await fetch(`${this.issuer()}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) {
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'BHD_ME',
+        message: `Identity me failed ${response.status}`,
+      });
+    }
+    const body = (await response.json()) as {
+      user?: {
+        id?: string;
+        email?: string;
+        name?: string;
+        picture?: string | null;
+        username?: string | null;
+        phone?: string | null;
+      } | null;
+    };
+    const user = body.user;
+    const email = typeof user?.email === 'string' ? user.email.trim().toLowerCase() : '';
+    if (!user?.id || !email) {
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'BHD_CLAIMS',
+        message: 'Missing identity user claims',
+      });
+    }
+    return {
+      sub: user.id,
+      email,
+      email_verified: true,
+      name: typeof user.name === 'string' && user.name.trim() ? user.name.trim() : email.split('@')[0],
+      picture: typeof user.picture === 'string' ? user.picture : undefined,
+      preferred_username: typeof user.username === 'string' ? user.username : undefined,
+      phone_number: typeof user.phone === 'string' ? user.phone : undefined,
+    };
+  }
+
+  async rebindFromWindowToken(
+    token: string,
+    meta: { ipAddress?: string; userAgent?: string },
+  ): Promise<{
+    tokens: { accessToken: string; refreshToken: string };
+    identity: {
+      sub: string;
+      email: string;
+      name: string;
+      picture: string | null;
+      username: string | null;
+      phone: string | null;
+    };
+  }> {
+    const claims = await this.profileFromWindowToken(token);
+    const session = await this.authService.loginWithBhdIdentity(claims, meta);
+    return {
+      tokens: {
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+      },
+      identity: {
+        sub: claims.sub,
+        email: claims.email,
+        name: (claims.name || claims.email || '').trim() || claims.email,
+        picture: claims.picture || null,
+        username: claims.preferred_username || null,
+        phone: claims.phone_number || null,
+      },
+    };
+  }
 }

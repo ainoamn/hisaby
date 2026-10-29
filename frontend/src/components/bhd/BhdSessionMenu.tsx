@@ -10,7 +10,6 @@ import {
   type BhdRosterAccount,
   type IdentityAccount,
 } from "@/lib/bhd/accounts";
-import { DEFAULT_IDENTITY_ISSUER } from "@/lib/bhd/issuer";
 import { useLocaleStore } from "@/store/locale";
 
 function toSwitcherUser(item: IdentityAccount | BhdRosterAccount): BhdSwitcherUser {
@@ -39,7 +38,7 @@ export function BhdSessionMenu({
 }) {
   const locale = useLocaleStore((s) => s.locale);
   const [accounts, setAccounts] = useState<BhdSwitcherUser[]>([]);
-  const [identityUser, setIdentityUser] = useState<BhdSwitcherUser | null>(null);
+  const [productSub, setProductSub] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,19 +55,22 @@ export function BhdSessionMenu({
 
     async function load() {
       try {
-        const response = await fetch(`${DEFAULT_IDENTITY_ISSUER}/api/auth/me`, {
-          cache: "no-store",
-          credentials: "include",
-          mode: "cors",
-        });
+        const me = await fetch("/api/auth/me", { cache: "no-store", credentials: "same-origin" });
+        const meJson = (await me.json().catch(() => ({}))) as { user?: { id?: string } | null };
+        if (!cancelled && meJson.user?.id) setProductSub(meJson.user.id);
+      } catch {
+        /* ignore */
+      }
+      try {
+        const { identityFetch } = await import("@/lib/identity/client");
+        const response = await identityFetch("/api/auth/me");
         if (response.ok) {
           const data = (await response.json()) as {
             user?: IdentityAccount | null;
             accounts?: IdentityAccount[];
           };
           const listed = Array.isArray(data.accounts) ? data.accounts.map(toSwitcherUser) : [];
-          if (!cancelled && (data.user || listed.length)) {
-            setIdentityUser(data.user ? toSwitcherUser(data.user) : null);
+          if (!cancelled && listed.length) {
             setAccounts(listed);
             return;
           }
@@ -78,10 +80,7 @@ export function BhdSessionMenu({
       }
       try {
         const listed = await loadLocal();
-        if (!cancelled) {
-          setIdentityUser(null);
-          setAccounts(listed);
-        }
+        if (!cancelled) setAccounts(listed);
       } catch {
         if (!cancelled) setAccounts([]);
       }
@@ -93,21 +92,21 @@ export function BhdSessionMenu({
     };
   }, [user.email]);
 
-  const email = (identityUser?.email || user.email || "").trim().toLowerCase();
+  const email = (user.email || "").trim().toLowerCase();
   const current =
-    accounts.find((item) => item.id && identityUser?.id && item.id === identityUser.id) ||
+    accounts.find((item) => item.id && productSub && item.id === productSub) ||
     accounts.find((item) => item.email && item.email.toLowerCase() === email);
   const switcherUser: BhdSwitcherUser = {
-    id: identityUser?.id || current?.id,
-    name: identityUser?.name || user.name || current?.name || "مستخدم",
-    email: identityUser?.email || user.email || current?.email || "",
-    username: identityUser?.username || current?.username || null,
-    phone: identityUser?.phone || current?.phone || null,
-    picture: identityUser?.picture || user.avatar || current?.picture || null,
-    providers: identityUser?.providers || current?.providers,
-    googleLinked: identityUser?.googleLinked || current?.googleLinked,
-    facebookLinked: identityUser?.facebookLinked || current?.facebookLinked,
-    hasPassword: identityUser?.hasPassword || current?.hasPassword,
+    id: productSub || current?.id,
+    name: user.name || current?.name || "مستخدم",
+    email: user.email || current?.email || "",
+    username: current?.username || null,
+    phone: current?.phone || null,
+    picture: user.avatar || current?.picture || null,
+    providers: current?.providers,
+    googleLinked: current?.googleLinked,
+    facebookLinked: current?.facebookLinked,
+    hasPassword: current?.hasPassword,
   };
 
   return (

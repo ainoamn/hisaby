@@ -1,6 +1,8 @@
 "use client";
 
-import { BHD_APPS, hopOrigins, launchUrlForApp, type BhdApp } from "@/lib/bhd/apps";
+import { hopOrigins, launchUrlForApp, type BhdApp } from "@/lib/bhd/apps";
+import { getCachedCatalogApps } from "@/lib/bhd/catalog";
+import { useBhdCatalog } from "@/lib/identity/use-bhd-catalog";
 import { DEFAULT_IDENTITY_ISSUER } from "@/lib/bhd/issuer";
 import { BhdAppIcon } from "@/components/bhd/BhdAppIcon";
 import { useRouter } from "next/navigation";
@@ -191,7 +193,7 @@ function isCurrentApp(app: BhdApp, pageOrigin: string) {
 
 function accountPageUrl(pageOrigin: string) {
   if (!pageOrigin) return `${DEFAULT_IDENTITY_ISSUER}/account`;
-  const accountApp = BHD_APPS.find((app) => app.id === "account");
+  const accountApp = getCachedCatalogApps().find((app) => app.id === "account");
   if (accountApp && isCurrentApp(accountApp, pageOrigin)) {
     return "/account";
   }
@@ -301,6 +303,7 @@ export function BhdAppSwitcher({
   const accountId = useId();
   const router = useRouter();
   const t = COPY[locale];
+  const catalogApps = useBhdCatalog();
 
   const picture =
     user.picture && !pictureFailed ? user.picture.trim() || null : null;
@@ -308,16 +311,16 @@ export function BhdAppSwitcher({
 
   useEffect(() => {
     setOrigin(window.location.origin);
-    hopOrigins().forEach((item) => hintHop(item));
-  }, []);
+    hopOrigins(catalogApps).forEach((item) => hintHop(item));
+  }, [catalogApps]);
 
   useEffect(() => {
     if (panel !== "apps" || !origin) return;
-    BHD_APPS.forEach((app) => {
+    catalogApps.forEach((app) => {
       if (!app.enabled) return;
       hintHop(appLaunchUrl(app, origin));
     });
-  }, [panel, origin]);
+  }, [panel, origin, catalogApps]);
 
   useEffect(() => {
     setPictureFailed(false);
@@ -439,7 +442,7 @@ export function BhdAppSwitcher({
             <p>{t.appsTitle}</p>
           </div>
           <div className="bhd-switcher-grid-apps">
-            {BHD_APPS.map((app) => {
+            {catalogApps.filter((app) => app.enabled).map((app) => {
               const current = origin ? isCurrentApp(app, origin) : false;
               const label = locale === "en" ? app.nameEn : app.nameAr;
               return (
