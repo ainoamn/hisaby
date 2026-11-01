@@ -356,6 +356,8 @@ POST {API_PUBLIC_URL}/api/payments/webhooks/paypal
 
 ## النشر
 
+سجل الإطلاق والملاحظات: [`docs/launch/`](docs/launch/PUBLISH-2026-11-01.md). نشر 1 نوفمبر 2026 يرفع إصلاح البناء إلى `main`. البيع والتسجيل العام والدفع تبقى مغلقة حتى تُقبل مراحل `docs/launch/PHASE-1-BUILD.md`.
+
 1. PostgreSQL مُدار (RDS, Supabase, …)
 2. Backend: `npm run build` + `npm run start:prod`
 3. Frontend: `npm run build` + `npm run start` أو Vercel
