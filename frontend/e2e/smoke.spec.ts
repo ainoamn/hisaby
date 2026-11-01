@@ -1,22 +1,16 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("smoke", () => {
-  test("login page renders email form", async ({ page }) => {
+  test("login page hands off to BHD identity", async ({ page }) => {
     await page.goto("/login", { waitUntil: "domcontentloaded" });
-    const email = page.locator('input[type="email"], input[name="email"]').first();
-    await expect(email).toBeVisible({ timeout: 30_000 });
-    await expect(
-      page.getByRole("button", { name: /sign in|تسجيل|login|دخول/i }).first(),
-    ).toBeVisible();
+    await page.waitForURL(/\/api\/auth\/bhd\/start|id\.bhd-om\.com\//, {
+      timeout: 30_000,
+    });
   });
 
-  test("register page renders company signup fields", async ({ page }) => {
+  test("register page hands off to BHD identity", async ({ page }) => {
     await page.goto("/register", { waitUntil: "domcontentloaded" });
-    const email = page.locator('input[type="email"], input[name="email"]').first();
-    await expect(email).toBeVisible({ timeout: 30_000 });
-    await expect(
-      page.getByRole("button", { name: /create|register|تسجيل|إنشاء|sign up/i }).first(),
-    ).toBeVisible();
+    await page.waitForURL(/id\.bhd-om\.com\/login/, { timeout: 30_000 });
   });
 
   test("complete-profile without invite shows recovery hint", async ({ page }) => {
@@ -34,7 +28,7 @@ test.describe("smoke", () => {
 test.describe("mobile app switcher", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, baseURL }) => {
     const company = {
       id: "company-mobile-test",
       name: "Mobile Test Company",
@@ -51,6 +45,14 @@ test.describe("mobile app switcher", () => {
       company,
       modulePermissions: {},
     };
+
+    await page.context().addCookies([
+      {
+        name: "bhd_access",
+        value: "smoke",
+        url: baseURL || "http://127.0.0.1:3000",
+      },
+    ]);
 
     await page.addInitScript(
       ({ storedUser, storedCompany }) => {
