@@ -200,7 +200,6 @@ model User {
   restoOrdersOpened RestoOrder[] @relation("RestoOrderOpenedBy")
   restoOrdersTipAssignee RestoOrder[] @relation("RestoOrderTipAssignee")
   restoServerSections RestoServerSection[] @relation("RestoServerSectionUser")
-  bhdRInboundEvents BhdRInboundEvent[]
 
   /// Home warehouse for POS cashiers — auto-selected; managers may switch freely
   defaultWarehouseId String? @map("default_warehouse_id")

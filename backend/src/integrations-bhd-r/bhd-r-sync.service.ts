@@ -122,7 +122,7 @@ export class BhdRSyncService {
       const payments = snapshot?.payments ?? fallbackPayments;
       const expenses = snapshot?.expenses ?? fallbackExpenses;
 
-      const propertyById = new Map(properties.map((row) => [row.id, row]));
+      const propertyById = new Map<string, BhdRPropertyRow>(properties.map((row) => [row.id, row]));
       const unitById = new Map<string, Record<string, unknown> & { id: string; propertyId?: string }>();
       for (const property of properties) {
         await this.ingest.ensurePropertyCostCenter(companyId, {
@@ -137,7 +137,7 @@ export class BhdRSyncService {
         }
       }
 
-      const partyById = new Map(parties.map((row) => [row.id, row]));
+      const partyById = new Map<string, BhdRPartyRow>(parties.map((row) => [row.id, row]));
       for (const party of parties) {
         const roles = Array.isArray(party.roles) ? party.roles : [];
         const supplier = roles.includes('supplier');
@@ -154,9 +154,9 @@ export class BhdRSyncService {
         summary.parties += 1;
       }
 
-      const vendorById = new Map(vendors.map((row) => [row.id, row]));
-      const leaseById = new Map(leases.map((row) => [row.id, row]));
-      const invoiceById = new Map(invoices.map((row) => [row.id, row]));
+      const vendorById = new Map<string, BhdRVendorRow>(vendors.map((row) => [row.id, row]));
+      const leaseById = new Map<string, BhdRLeaseRow>(leases.map((row) => [row.id, row]));
+      const invoiceById = new Map<string, BhdRInvoiceRow>(invoices.map((row) => [row.id, row]));
 
       for (const invoice of invoices) {
         if (isCancelledStatus(invoice.status)) {

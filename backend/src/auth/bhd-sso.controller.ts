@@ -51,7 +51,7 @@ function bindReturnPath(returnTo: string, sub: string): string {
 }
 
 function wantsJson(req: Request): boolean {
-  const accept = req.headers.get('accept') || '';
+  const accept = req.get('accept') || '';
   return accept.includes('application/json');
 }
 

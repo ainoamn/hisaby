@@ -23,6 +23,24 @@ import {
 } from './dto/bhd-r-event.dto';
 
 const TOKEN_PREFIX = 'qk_bhdr_';
+
+function bhdRContactFields(externalId: string | undefined, address: BhdRAddressDto | null | undefined): Prisma.InputJsonValue {
+  return {
+    bhdR: {
+      externalId: externalId || null,
+      source: 'bhd-r',
+      address: address
+        ? {
+            line: address.line ?? null,
+            city: address.city ?? null,
+            governorate: address.governorate ?? null,
+            wilayat: address.wilayat ?? null,
+            countryCode: address.countryCode ?? null,
+          }
+        : null,
+    },
+  };
+}
 const PROPERTIES_URL = 'https://r.bhd-om.com';
 const EVENTS_PATH = '/api/integrations/bhd-r/events';
 const PUBLIC_ORIGIN = (process.env.FRONTEND_URL || 'https://hisaby.bhd-om.com').replace(/\/+$/, '');
@@ -546,13 +564,7 @@ export class IntegrationsBhdRService {
           ...(details.address ? { address: details.address } : {}),
           ...(details.city ? { city: details.city } : {}),
           ...(details.country ? { country: details.country } : {}),
-          customFieldsJson: {
-            bhdR: {
-              externalId: externalId || null,
-              source: 'bhd-r',
-              address: counterparty?.address || null,
-            },
-          },
+          customFieldsJson: bhdRContactFields(externalId, counterparty?.address),
         },
       });
     };
@@ -591,13 +603,7 @@ export class IntegrationsBhdRService {
         city: details.city,
         country: details.country || 'OM',
         notes: externalId ? `bhd-r:party:${externalId}` : 'جهة من تكامل BHD R',
-        customFieldsJson: {
-          bhdR: {
-            externalId: externalId || null,
-            source: 'bhd-r',
-            address: counterparty?.address || null,
-          },
-        },
+        customFieldsJson: bhdRContactFields(externalId, counterparty?.address),
       },
     });
   }

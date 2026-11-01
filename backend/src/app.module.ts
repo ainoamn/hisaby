@@ -46,6 +46,7 @@ import { ManagementAlertsModule } from './management-alerts/management-alerts.mo
 import { ManagerReportsModule } from './manager-reports/manager-reports.module';
 import { HealthController } from './health.controller';
 import { DenyViewerMutationsGuard } from './common/guards/deny-viewer-mutations.guard';
+import { CommercialScopeGuard } from './common/guards/commercial-scope.guard';
 import { Past2faGraceInterceptor } from './common/interceptors/past-2fa-grace.interceptor';
 
 @Module({
@@ -120,6 +121,10 @@ import { Past2faGraceInterceptor } from './common/interceptors/past-2fa-grace.in
     {
       provide: APP_GUARD,
       useClass: DenyViewerMutationsGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: CommercialScopeGuard,
     },
     {
       provide: APP_INTERCEPTOR,
